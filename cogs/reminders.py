@@ -29,7 +29,7 @@ SABBATS = {
 }
 
 # -----------------------
-# Helpers
+# Helper Functions
 # -----------------------
 def format_date(d: datetime.date) -> str:
     return d.strftime("%-d %B %Y")
@@ -55,6 +55,10 @@ def moon_phase_emoji(date: datetime.date) -> str:
         return "🌘"
     else:
         return "🌑"
+
+def count_users_in_role(guild: discord.Guild, role_id: int) -> int:
+    role = guild.get_role(role_id)
+    return len(role.members) if role else 0
 
 # -----------------------
 # Reminder Buttons
@@ -145,5 +149,8 @@ class RemindersCog(commands.Cog):
     async def before_daily_loop(self):
         await self.bot.wait_until_ready()
 
+# -----------------------
+# Setup
+# -----------------------
 async def setup(bot):
     await bot.add_cog(RemindersCog(bot))

@@ -2,6 +2,9 @@ import sqlite3
 
 DB_FILE = "bot_data.db"
 
+# -----------------------
+# Database Initialization
+# -----------------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -29,7 +32,11 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    print("✅ Database initialized.")
 
+# -----------------------
+# User Preferences
+# -----------------------
 def save_user_preferences(user_id, region=None, zodiac=None, hour=None, days=None):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -58,6 +65,9 @@ def set_subscription(user_id, status: bool):
     conn.commit()
     conn.close()
 
+# -----------------------
+# Quotes & Journal Prompts
+# -----------------------
 def add_quote(quote):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
