@@ -7,27 +7,22 @@ import ephem
 import os
 from zoneinfo import ZoneInfo
 import random
+import sqlite3
 
 # -----------------------
 # Environment Variables
 # -----------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # For startup messages
 
 # -----------------------
 # Bot Setup
 # -----------------------
 intents = discord.Intents.default()
-intents.message_content = True
 intents.members = True
+intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
-
-# -----------------------
-# Global State
-# -----------------------
-REMINDER_SUBSCRIPTIONS = set()  # Stores member IDs who opted in
 
 # -----------------------
 # Regions & Sabbats
@@ -41,8 +36,14 @@ REGIONS = {
 }
 
 SABBATS = {
-    "Imbolc": (2, 1), "Ostara": (3, 20), "Beltane": (5, 1), "Litha": (6, 21),
-    "Lughnasadh": (8, 1), "Mabon": (9, 22), "Samhain": (10, 31), "Yule": (12, 21),
+    "Imbolc": (2, 1),
+    "Ostara": (3, 20),
+    "Beltane": (5, 1),
+    "Litha": (6, 21),
+    "Lughnasadh": (8, 1),
+    "Mabon": (9, 22),
+    "Samhain": (10, 31),
+    "Yule": (12, 21),
 }
 
 QUOTES = [
@@ -53,8 +54,44 @@ QUOTES = [
     "🌱 Growth is guided by the cycles of the Earth and Moon"
 ]
 
+JOURNAL_PROMPTS = [
+    "What are three things you are grateful for today?",
+    "Reflect on a recent challenge and what you learned.",
+    "What intention do you want to set for today?"
+]
+
 # -----------------------
-# Helper Functions
+# SQLite Setup
+# -----------------------
+conn = sqlite3.connect("bot_data.db")
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    region TEXT,
+    zodiac TEXT,
+    reminder_hour INTEGER DEFAULT 9,
+    reminder_days TEXT DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
+    subscribed INTEGER DEFAULT 1
+)
+""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quote TEXT
+)
+""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS journal_prompts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt TEXT
+)
+""")
+conn.commit()
+conn.close()
+
+# -----------------------
+# Helpers
 # -----------------------
 def format_date(d: datetime.date) -> str:
     return d.strftime("%-d %B %Y")
@@ -85,9 +122,72 @@ def count_users_in_role(guild, role_id):
     role = guild.get_role(role_id)
     return len(role.members) if role else 0
 
-def get_user_region(member):
-    user_roles = [role.id for role in member.roles]
-    return next((data for data in REGIONS.values() if data["role_id"] in user_roles), None)
+# -----------------------
+# SQLite User Management
+# -----------------------
+def save_user_preferences(user_id, region=None, zodiac=None, hour=None, days=None):
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT OR REPLACE INTO users (user_id, region, zodiac, reminder_hour, reminder_days, subscribed)
+    VALUES (?, ?, ?, ?, ?, COALESCE((SELECT subscribed FROM users WHERE user_id=?),1))
+    """, (user_id, region, zodiac, hour or 9, ",".join(days) if days else 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', user_id))
+    conn.commit()
+    conn.close()
+
+def get_user_preferences(user_id):
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        region, zodiac, hour, days, subscribed = row
+        return {
+            "region": region,
+            "zodiac": zodiac,
+            "hour": hour,
+            "days": days.split(","),
+            "subscribed": bool(subscribed)
+        }
+    return None
+
+def set_subscription(user_id, status: bool):
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET subscribed = ? WHERE user_id = ?", (int(status), user_id))
+    conn.commit()
+    conn.close()
+
+def add_quote(quote):
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
+    conn.commit()
+    conn.close()
+
+def get_all_quotes():
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT quote FROM quotes")
+    quotes = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return QUOTES + quotes
+
+def add_journal_prompt(prompt):
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO journal_prompts (prompt) VALUES (?)", (prompt,))
+    conn.commit()
+    conn.close()
+
+def get_all_journal_prompts():
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT prompt FROM journal_prompts")
+    prompts = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return JOURNAL_PROMPTS + prompts
 
 # -----------------------
 # Onboarding Buttons
@@ -102,29 +202,16 @@ class OnboardingButton(discord.ui.Button):
         guild = bot.get_guild(GUILD_ID)
         region_data = REGIONS[self.region_key]
         role = guild.get_role(region_data["role_id"])
-
-        # Remove previous region roles
+        # Remove previous roles
         for rdata in REGIONS.values():
             prev_role = guild.get_role(rdata["role_id"])
             if prev_role in self.member.roles:
                 await self.member.remove_roles(prev_role)
-
         await self.member.add_roles(role)
+        save_user_preferences(self.member.id, region=self.region_key)
         await interaction.response.send_message(
             f"✅ You have been assigned the role for **{region_data['name']}**.", ephemeral=True
         )
-
-        # Send combined Subscribe/Unsubscribe DM
-        try:
-            dm = await self.member.create_dm()
-            embed = discord.Embed(
-                title="Daily Reminders 🌙",
-                description="You can manage your daily DM reminders using the buttons below:",
-                color=0x9b59b6
-            )
-            await dm.send(embed=embed, view=ReminderOptCombinedView(self.member))
-        except Exception as e:
-            print(f"Failed to send DM for reminder opt-in to {self.member}: {e}")
         self.view.stop()
 
 class OnboardingView(discord.ui.View):
@@ -135,45 +222,14 @@ class OnboardingView(discord.ui.View):
             self.add_item(OnboardingButton(label=data["name"], emoji=data["emoji"], member=member, region_key=key))
 
 # -----------------------
-# Subscribe/Unsubscribe Buttons in DM
-# -----------------------
-class ReminderOptCombinedButton(discord.ui.Button):
-    def __init__(self, member, opt_in: bool):
-        label = "Subscribe to daily reminders" if opt_in else "Unsubscribe from daily reminders"
-        style = discord.ButtonStyle.success if opt_in else discord.ButtonStyle.secondary
-        super().__init__(label=label, style=style)
-        self.member = member
-        self.opt_in = opt_in
-
-    async def callback(self, interaction: discord.Interaction):
-        if self.opt_in:
-            REMINDER_SUBSCRIPTIONS.add(self.member.id)
-            await interaction.response.send_message("✅ You are now subscribed to daily reminders via DM!", ephemeral=True)
-        else:
-            REMINDER_SUBSCRIPTIONS.discard(self.member.id)
-            await interaction.response.send_message("✅ You are now unsubscribed from daily reminders.", ephemeral=True)
-        self.view.stop()
-
-class ReminderOptCombinedView(discord.ui.View):
-    def __init__(self, member):
-        super().__init__(timeout=300)
-        self.add_item(ReminderOptCombinedButton(member, True))
-        self.add_item(ReminderOptCombinedButton(member, False))
-
-# -----------------------
 # Onboarding Handlers
 # -----------------------
 async def start_onboarding(member):
     try:
         dm_channel = await member.create_dm()
         embed = discord.Embed(
-            title="✨ Welcome to the Circle! ✨",
-            description=(
-                "Greetings, seeker! 🌙\n\n"
-                "Please select your **region** below so you can access region-specific channels and "
-                "receive updates tailored for you.\n\n"
-                "After selecting your region, you can manage daily DM reminders via the buttons."
-            ),
+            title="Welcome! 🌙",
+            description="Please select your region by clicking one of the buttons below to receive your role and start receiving reminders.",
             color=0x9b59b6
         )
         await dm_channel.send(embed=embed, view=OnboardingView(member))
@@ -190,30 +246,21 @@ async def onboard(interaction: discord.Interaction):
     await interaction.response.send_message("✅ Check your DMs to complete onboarding!", ephemeral=True)
 
 # -----------------------
-# /subscribe and /unsubscribe Commands
+# /help Command
 # -----------------------
-@tree.command(name="subscribe", description="Start receiving daily DM reminders", guild=discord.Object(id=GUILD_ID))
-async def subscribe(interaction: discord.Interaction):
-    region_data = get_user_region(interaction.user)
-    if not region_data:
-        await interaction.response.send_message(
-            "⚠️ You need a region role before subscribing. Please complete onboarding first.",
-            ephemeral=True
-        )
-        return
-    REMINDER_SUBSCRIPTIONS.add(interaction.user.id)
-    await interaction.response.send_message("✅ You have been subscribed to daily reminders via DM!", ephemeral=True)
-
-@tree.command(name="unsubscribe", description="Stop receiving daily DM reminders", guild=discord.Object(id=GUILD_ID))
-async def unsubscribe(interaction: discord.Interaction):
-    if interaction.user.id in REMINDER_SUBSCRIPTIONS:
-        REMINDER_SUBSCRIPTIONS.discard(interaction.user.id)
-        await interaction.response.send_message("✅ You have been unsubscribed from daily reminders.", ephemeral=True)
-    else:
-        await interaction.response.send_message("⚠️ You are not currently subscribed to daily reminders.", ephemeral=True)
-
+@tree.command(name="help", description="Shows all available commands", guild=discord.Object(id=GUILD_ID))
+async def help_command(interaction: discord.Interaction):
+    embed = discord.Embed(title="🌙 Bot Help", color=0x9b59b6)
+    embed.add_field(name="/onboard", value="Start onboarding to select region, zodiac, and reminders.", inline=False)
+    embed.add_field(name="/reminder", value="Receive your daily interactive reminder immediately.", inline=False)
+    embed.add_field(name="/status", value="Show bot status, next Sabbat, full moon, and user counts.", inline=False)
+    embed.add_field(name="/submit_quote <text>", value="Submit an inspirational quote for reminders.", inline=False)
+    embed.add_field(name="/submit_journal <text>", value="Submit a journal prompt for daily reminders.", inline=False)
+    embed.add_field(name="/unsubscribe", value="Stop receiving daily DM reminders.", inline=False)
+    await interaction.user.send(embed=embed)
+    await interaction.response.send_message("✅ Help sent to your DMs.", ephemeral=True)
 # -----------------------
-# Reminder Buttons (for /reminder)
+# Reminder Buttons
 # -----------------------
 class ReminderButtons(discord.ui.View):
     def __init__(self, region_data):
@@ -250,147 +297,58 @@ class ReminderButtons(discord.ui.View):
 
     @discord.ui.button(label="Random Quote", style=discord.ButtonStyle.success)
     async def random_quote(self, interaction: discord.Interaction, button: discord.ui.Button):
-        quote = random.choice(QUOTES)
+        quote = random.choice(get_all_quotes())
         await interaction.response.send_message(f"💫 {quote}", ephemeral=True)
-
-# -----------------------
-# Daily Reminder DM Task (Redesigned Embed)
-# -----------------------
-async def post_daily_reminder_dm(member_id):
-    guild = bot.get_guild(GUILD_ID)
-    member = guild.get_member(member_id)
-    if not member:
-        return
-    region_data = get_user_region(member)
-    if not region_data:
-        return
-    tz = ZoneInfo(region_data["tz"])
-    today = datetime.datetime.now(tz).date()
-    emoji = region_data["emoji"]
-    color = region_data["color"]
-    region_name = region_data["name"]
-
-    # Redesigned embed
-    embed = discord.Embed(
-        title=f"{emoji} Daily Reminder — {region_name}",
-        color=color
-    )
-
-    embed.add_field(
-        name="📅 Date & Timezone",
-        value=f"{format_date(today)} | {region_data['tz']}",
-        inline=False
-    )
-
-    # Next full moon
-    next_moon = next_full_moon_for_tz(region_data['tz'])
-    moon_emoji = moon_phase_emoji(datetime.datetime.now(tz))
-    embed.add_field(
-        name="🌕 Next Full Moon",
-        value=f"{format_date(next_moon)} {moon_emoji}",
-        inline=True
-    )
-
-    # Next Sabbat
-    sabbats = get_sabbat_dates(today.year)
-    upcoming_sabbat = min((d for d in sabbats.values() if d >= today), default=None)
-    sabbat_name = next((name for name, d in sabbats.items() if d == upcoming_sabbat), "Unknown")
-    embed.add_field(
-        name="🔮 Next Sabbat",
-        value=f"{sabbat_name} — {format_date(upcoming_sabbat)}",
-        inline=True
-    )
-
-    # Daily quote
-    embed.add_field(
-        name="💫 Daily Quote",
-        value=f"{random.choice(QUOTES)}",
-        inline=False
-    )
-
-    try:
-        dm = await member.create_dm()
-        await dm.send(embed=embed, view=ReminderButtons(region_data))
-    except Exception as e:
-        print(f"Failed to send daily reminder to {member}: {e}")
 
 # -----------------------
 # /reminder Command
 # -----------------------
 @tree.command(name="reminder", description="Get an interactive reminder", guild=discord.Object(id=GUILD_ID))
 async def reminder(interaction: discord.Interaction):
-    region_data = get_user_region(interaction.user)
-    if not region_data:
-        await interaction.response.send_message("⚠️ No region role detected. Please complete onboarding first.", ephemeral=True)
+    prefs = get_user_preferences(interaction.user.id)
+    if not prefs or not prefs["subscribed"]:
+        await interaction.response.send_message("⚠️ You are not subscribed. Use `/onboard` to set your preferences.", ephemeral=True)
         return
-
-    tz = ZoneInfo(region_data["tz"])
-    today = datetime.datetime.now(tz).date()
+    region_data = REGIONS.get(prefs["region"])
+    if not region_data:
+        await interaction.response.send_message("⚠️ Region not set. Please complete onboarding.", ephemeral=True)
+        return
     emoji = region_data["emoji"]
     color = region_data["color"]
-    region_name = region_data["name"]
-
-    # Embed matches redesigned DM
+    tz = region_data["tz"]
+    today = datetime.datetime.now(ZoneInfo(tz)).date()
     embed = discord.Embed(
-        title=f"{emoji} Daily Reminder — {region_name}",
+        title=f"{emoji} Daily Reminder",
+        description=f"Good morning, {interaction.user.name}! 🌞\nToday is **{format_date(today)}**\nRegion: **{region_data['name']}** | Timezone: **{tz}**\n\n💫 Quote: {random.choice(get_all_quotes())}\n📝 Journal Prompt: {random.choice(get_all_journal_prompts())}",
         color=color
     )
-
-    embed.add_field(
-        name="📅 Date & Timezone",
-        value=f"{format_date(today)} | {region_name} | {region_data['tz']}",
-        inline=False
-    )
-
-    next_moon = next_full_moon_for_tz(region_data['tz'])
-    moon_emoji = moon_phase_emoji(datetime.datetime.now(tz))
-    embed.add_field(
-        name="🌕 Next Full Moon",
-        value=f"{format_date(next_moon)} {moon_emoji}",
-        inline=True
-    )
-
-    sabbats = get_sabbat_dates(today.year)
-    upcoming_sabbat = min((d for d in sabbats.values() if d >= today), default=None)
-    sabbat_name = next((name for name, d in sabbats.items() if d == upcoming_sabbat), "Unknown")
-    embed.add_field(
-        name="🔮 Next Sabbat",
-        value=f"{sabbat_name} — {format_date(upcoming_sabbat)}",
-        inline=True
-    )
-
-    embed.add_field(
-        name="💫 Daily Quote",
-        value=f"{random.choice(QUOTES)}",
-        inline=False
-    )
-
     await interaction.response.send_message(embed=embed, view=ReminderButtons(region_data))
 
 # -----------------------
-# /test_reminder Command
+# /submit_quote Command
 # -----------------------
-@tree.command(name="test_reminder", description="Send yourself a test daily reminder DM", guild=discord.Object(id=GUILD_ID))
-async def test_reminder(interaction: discord.Interaction):
-    await post_daily_reminder_dm(interaction.user.id)
-    await interaction.response.send_message("✅ Test reminder sent to your DMs!", ephemeral=True)
+@tree.command(name="submit_quote", description="Submit an inspirational quote", guild=discord.Object(id=GUILD_ID))
+@app_commands.describe(quote="The quote text to submit")
+async def submit_quote(interaction: discord.Interaction, quote: str):
+    add_quote(quote)
+    await interaction.response.send_message("✅ Quote submitted successfully.", ephemeral=True)
 
 # -----------------------
-# Daily Reminder Scheduler
+# /submit_journal Command
 # -----------------------
-@tasks.loop(minutes=1)
-async def daily_reminder_task():
-    for member_id in REMINDER_SUBSCRIPTIONS:
-        member = bot.get_guild(GUILD_ID).get_member(member_id)
-        if not member:
-            continue
-        region_data = get_user_region(member)
-        if not region_data:
-            continue
-        tz = ZoneInfo(region_data["tz"])
-        local_time = datetime.datetime.now(tz)
-        if local_time.hour == 9 and local_time.minute == 0:
-            await post_daily_reminder_dm(member_id)
+@tree.command(name="submit_journal", description="Submit a journal prompt", guild=discord.Object(id=GUILD_ID))
+@app_commands.describe(prompt="The journal prompt text to submit")
+async def submit_journal(interaction: discord.Interaction, prompt: str):
+    add_journal_prompt(prompt)
+    await interaction.response.send_message("✅ Journal prompt submitted successfully.", ephemeral=True)
+
+# -----------------------
+# /unsubscribe Command
+# -----------------------
+@tree.command(name="unsubscribe", description="Stop receiving daily reminders", guild=discord.Object(id=GUILD_ID))
+async def unsubscribe(interaction: discord.Interaction):
+    set_subscription(interaction.user.id, False)
+    await interaction.response.send_message("❌ You have unsubscribed from daily reminders.", ephemeral=True)
 
 # -----------------------
 # /status Command
@@ -416,19 +374,52 @@ async def status(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # -----------------------
-# On Ready
+# Daily Reminder Task
+# -----------------------
+async def send_daily_reminder(user_id, prefs):
+    user = bot.get_user(user_id)
+    if not user or not prefs["subscribed"]:
+        return
+    region_data = REGIONS.get(prefs["region"])
+    if not region_data:
+        return
+    tz = ZoneInfo(region_data["tz"])
+    now = datetime.datetime.now(tz)
+    if now.strftime("%a") not in prefs["days"]:
+        return
+    if now.hour != prefs["hour"]:
+        return
+    embed = discord.Embed(
+        title=f"{region_data['emoji']} Daily Reminder",
+        description=f"Good morning, {user.name}! 🌞\nToday is **{format_date(now.date())}**\nRegion: **{region_data['name']}** | Timezone: **{tz}**\n\n💫 Quote: {random.choice(get_all_quotes())}\n📝 Journal Prompt: {random.choice(get_all_journal_prompts())}",
+        color=region_data["color"]
+    )
+    await user.send(embed=embed, view=ReminderButtons(region_data))
+
+@tasks.loop(minutes=1)
+async def daily_reminder_loop():
+    conn = sqlite3.connect("bot_data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE subscribed = 1")
+    rows = cursor.fetchall()
+    conn.close()
+    for row in rows:
+        user_id, region, zodiac, hour, days, subscribed = row
+        prefs = {"region": region, "zodiac": zodiac, "hour": hour, "days": days.split(","), "subscribed": bool(subscribed)}
+        await send_daily_reminder(user_id, prefs)
+
+# -----------------------
+# On Ready Event
 # -----------------------
 @bot.event
 async def on_ready():
     print(f"{bot.user} is online.")
     await tree.sync(guild=discord.Object(id=GUILD_ID))
-    guild = bot.get_guild(GUILD_ID)
-    channel = guild.get_channel(CHANNEL_ID)
-    if channel:
-        asyncio.create_task(channel.send("🌙 Bot is online and fully operational!"))
-    daily_reminder_task.start()
+    daily_reminder_loop.start()
+    # Optional startup DM to all users or server announcement
+    print("🌙 Daily reminder loop started.")
 
 # -----------------------
 # Run Bot
 # -----------------------
-bot.run(TOKEN)  # Line 355
+bot.run(TOKEN)  # Line 434
