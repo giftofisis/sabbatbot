@@ -5,7 +5,7 @@ import ephem
 import os
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_ID = int(os.getenv("1417882934131818577"))
 ROLE_ID = int(os.getenv("ROLE_ID", 0))  # optional
 
 intents = discord.Intents.default()
