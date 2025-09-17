@@ -1,6 +1,6 @@
 import discord
-from discord import app_commands
 from discord.ext import commands
+from discord import app_commands
 import asyncio
 import datetime
 import ephem
@@ -12,15 +12,8 @@ import random
 # Environment Variables
 # -----------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-GUILD_ID = int(os.getenv("GUILD_ID"))  # For slash commands registration
+GUILD_ID = int(os.getenv("GUILD_ID"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-
-if not TOKEN:
-    raise ValueError("❌ DISCORD_BOT_TOKEN missing!")
-if not CHANNEL_ID:
-    raise ValueError("❌ CHANNEL_ID missing!")
-if not GUILD_ID:
-    raise ValueError("❌ GUILD_ID missing!")
 
 # -----------------------
 # Bot Setup
@@ -30,7 +23,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 # -----------------------
-# Regions
+# Regions & Sabbats
 # -----------------------
 REGIONS = {
     "NA": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🌲", "color": 0x2ecc71},
@@ -87,100 +80,79 @@ def moon_phase_emoji(date: datetime.date) -> str:
     else:
         return "🌑"
 
-async def send_embed(title, description, color):
-    channel = bot.get_channel(CHANNEL_ID)
-    if channel:
-        embed = discord.Embed(title=title, description=description, color=color)
-        await channel.send(embed=embed)
-    else:
-        print("❌ Channel not found.")
-
 def get_user_region(member):
     user_roles = [role.id for role in member.roles]
     return next((data for data in REGIONS.values() if data["role_id"] in user_roles), None)
 
 # -----------------------
-# Region Scheduler
+# Buttons for /reminder
 # -----------------------
-async def daily_region_check(region_name, role_id, tz_name, emoji, color):
-    while True:
-        now = datetime.datetime.now(ZoneInfo(tz_name))
-        target = now.replace(hour=9, minute=0, second=0, microsecond=0)
-        if now >= target:
-            target += datetime.timedelta(days=1)
-        await asyncio.sleep((target - now).total_seconds())
+class ReminderButtons(discord.ui.View):
+    def __init__(self, region_data):
+        super().__init__(timeout=None)
+        self.region_data = region_data
 
-        today = datetime.datetime.now(ZoneInfo(tz_name)).date()
-        mention = f"<@&{role_id}>"
+    @discord.ui.button(label="Next Sabbat", style=discord.ButtonStyle.primary)
+    async def next_sabbat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        tz = self.region_data["tz"]
+        emoji = self.region_data["emoji"]
+        region_name = self.region_data["name"]
 
-        # Sabbats
+        today = datetime.datetime.now(ZoneInfo(tz)).date()
         sabbats = get_sabbat_dates(today.year)
-        for name, date_val in sabbats.items():
-            if today == date_val:
-                description = (
-                    f"{mention} Today is **{format_date(today)}** — celebrate the Wheel of the Year.\n"
-                    f"Region: **{region_name}** | Timezone: **{tz_name}**\n"
-                    f"{random.choice(QUOTES)}"
-                )
-                await send_embed(f"{emoji} Blessed {name} in {region_name}", description, color)
+        upcoming = [(n, d) for n, d in sabbats.items() if d >= today]
+        if not upcoming:
+            upcoming = list(sabbats.items())
+        name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
 
-        # Full Moon
-        fm = next_full_moon_for_tz(tz_name)
-        if today == fm:
-            description = (
-                f"{mention} Date: **{format_date(fm)}** — perfect for ritual and reflection.\n"
-                f"Region: **{region_name}** | Timezone: **{tz_name}**\n"
-                f"{random.choice(QUOTES)}"
-            )
-            await send_embed(f"{emoji} Full Moon tonight in {region_name}", description, color)
+        await interaction.response.send_message(
+            f"{emoji} Next Sabbat for your region: **{name}** on **{format_date(date_val)}**\n"
+            f"Region: **{region_name}** | Timezone: **{tz}**", ephemeral=True
+        )
+
+    @discord.ui.button(label="Next Full Moon", style=discord.ButtonStyle.secondary)
+    async def next_moon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        tz = self.region_data["tz"]
+        emoji = self.region_data["emoji"]
+        region_name = self.region_data["name"]
+
+        fm = next_full_moon_for_tz(tz)
+        phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
+
+        await interaction.response.send_message(
+            f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\n"
+            f"Region: **{region_name}** | Timezone: **{tz}**", ephemeral=True
+        )
+
+    @discord.ui.button(label="Random Quote", style=discord.ButtonStyle.success)
+    async def random_quote(self, interaction: discord.Interaction, button: discord.ui.Button):
+        quote = random.choice(QUOTES)
+        await interaction.response.send_message(f"💫 {quote}", ephemeral=True)
 
 # -----------------------
-# Slash Commands
+# Slash Command /reminder
 # -----------------------
-@tree.command(name="nextsabbat", description="Shows the next Sabbat for your region", guild=discord.Object(id=GUILD_ID))
-async def nextsabbat(interaction: discord.Interaction):
+@tree.command(name="reminder", description="Get an interactive reminder with buttons", guild=discord.Object(id=GUILD_ID))
+async def reminder(interaction: discord.Interaction):
     region_data = get_user_region(interaction.user)
     if not region_data:
         await interaction.response.send_message("⚠️ No region role detected. Please contact an admin.", ephemeral=True)
         return
 
-    tz = region_data["tz"]
     emoji = region_data["emoji"]
     color = region_data["color"]
     region_name = region_data["name"]
+    tz = region_data["tz"]
 
     today = datetime.datetime.now(ZoneInfo(tz)).date()
-    sabbats = get_sabbat_dates(today.year)
-    upcoming = [(n, d) for n, d in sabbats.items() if d >= today]
-    if not upcoming:
-        upcoming = list(sabbats.items())
-    name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
-
-    await interaction.response.send_message(
-        f"{emoji} Next Sabbat for your region: **{name}** on **{format_date(date_val)}**\n"
-        f"Region: **{region_name}** | Timezone: **{tz}**"
+    description = (
+        f"Today is **{format_date(today)}**\n"
+        f"Region: **{region_name}** | Timezone: **{tz}**\n"
+        f"{random.choice(QUOTES)}"
     )
 
-@tree.command(name="nextmoon", description="Shows the next Full Moon for your region", guild=discord.Object(id=GUILD_ID))
-async def nextmoon(interaction: discord.Interaction):
-    region_data = get_user_region(interaction.user)
-    if not region_data:
-        await interaction.response.send_message("⚠️ No region role detected. Please contact an admin.", ephemeral=True)
-        return
-
-    tz = region_data["tz"]
-    emoji = region_data["emoji"]
-    color = region_data["color"]
-    region_name = region_data["name"]
-    
-
-    fm = next_full_moon_for_tz(tz)
-    phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
-
-    await interaction.response.send_message(
-        f"{emoji} Next Full Moon for your region: **{format_date(fm)}** {phase_emoji}\n"
-        f"Region: **{region_name}** | Timezone: **{tz}**"
-    )
+    embed = discord.Embed(title=f"{emoji} Daily Reminder", description=description, color=color)
+    await interaction.response.send_message(embed=embed, view=ReminderButtons(region_data))
 
 # -----------------------
 # On Ready
@@ -189,10 +161,6 @@ async def nextmoon(interaction: discord.Interaction):
 async def on_ready():
     print(f"{bot.user} is online.")
     await tree.sync(guild=discord.Object(id=GUILD_ID))
-    await send_embed("✅ Bot Online", "I am online and sending region-specific 9AM reminders!", 0x1abc9c)
-
-    for region_name, data in REGIONS.items():
-        bot.loop.create_task(daily_region_check(region_name, data["role_id"], data["tz"], data["emoji"], data["color"]))
 
 # -----------------------
 # Run Bot
