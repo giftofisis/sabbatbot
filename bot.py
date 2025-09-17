@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks
+from discord.ext import commands
 import asyncio
 import datetime
 import ephem
@@ -27,19 +27,17 @@ if not GUILD_ID:
 # -----------------------
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# For slash commands
 tree = bot.tree
 
 # -----------------------
 # Regions
 # -----------------------
 REGIONS = {
-    "NA": {"role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🌲", "color": 0x2ecc71},
-    "SA": {"role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
-    "EU": {"role_id": 1416439011517534288, "tz": "Europe/London", "emoji": "🍀", "color": 0x3498db},
-    "AF": {"role_id": 1416439116043649224, "tz": "Africa/Johannesburg", "emoji": "🌍", "color": 0xf1c40f},
-    "OC": {"role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
+    "NA": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🌲", "color": 0x2ecc71},
+    "SA": {"name": "South America", "role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
+    "EU": {"name": "Europe", "role_id": 1416439011517534288, "tz": "Europe/London", "emoji": "🍀", "color": 0x3498db},
+    "AF": {"name": "Africa", "role_id": 1416439116043649224, "tz": "Africa/Johannesburg", "emoji": "🌍", "color": 0xf1c40f},
+    "OC": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
 }
 
 SABBATS = {
@@ -119,13 +117,21 @@ async def daily_region_check(region_name, role_id, tz_name, emoji, color):
         sabbats = get_sabbat_dates(today.year)
         for name, date_val in sabbats.items():
             if today == date_val:
-                description = f"{mention} Today is **{format_date(today)}** — celebrate the Wheel of the Year.\n{random.choice(QUOTES)}"
+                description = (
+                    f"{mention} Today is **{format_date(today)}** — celebrate the Wheel of the Year.\n"
+                    f"Region: **{region_name}** | Timezone: **{tz_name}**\n"
+                    f"{random.choice(QUOTES)}"
+                )
                 await send_embed(f"{emoji} Blessed {name} in {region_name}", description, color)
 
         # Full Moon
         fm = next_full_moon_for_tz(tz_name)
         if today == fm:
-            description = f"{mention} Date: **{format_date(fm)}** — perfect for ritual and reflection.\n{random.choice(QUOTES)}"
+            description = (
+                f"{mention} Date: **{format_date(fm)}** — perfect for ritual and reflection.\n"
+                f"Region: **{region_name}** | Timezone: **{tz_name}**\n"
+                f"{random.choice(QUOTES)}"
+            )
             await send_embed(f"{emoji} Full Moon tonight in {region_name}", description, color)
 
 # -----------------------
@@ -134,9 +140,14 @@ async def daily_region_check(region_name, role_id, tz_name, emoji, color):
 @tree.command(name="nextsabbat", description="Shows the next Sabbat for your region", guild=discord.Object(id=GUILD_ID))
 async def nextsabbat(interaction: discord.Interaction):
     region_data = get_user_region(interaction.user)
-    tz = region_data["tz"] if region_data else "UTC"
-    emoji = region_data["emoji"] if region_data else "🌙"
-    color = region_data["color"] if region_data else 0x95a5a6
+    if not region_data:
+        await interaction.response.send_message("⚠️ No region role detected. Please contact an admin.", ephemeral=True)
+        return
+
+    tz = region_data["tz"]
+    emoji = region_data["emoji"]
+    color = region_data["color"]
+    region_name = region_data["name"]
 
     today = datetime.datetime.now(ZoneInfo(tz)).date()
     sabbats = get_sabbat_dates(today.year)
@@ -144,18 +155,31 @@ async def nextsabbat(interaction: discord.Interaction):
     if not upcoming:
         upcoming = list(sabbats.items())
     name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
-    await interaction.response.send_message(f"{emoji} Next Sabbat for your region: **{name}** on **{format_date(date_val)}**.")
+
+    await interaction.response.send_message(
+        f"{emoji} Next Sabbat for your region: **{name}** on **{format_date(date_val)}**\n"
+        f"Region: **{region_name}** | Timezone: **{tz}**"
+    )
 
 @tree.command(name="nextmoon", description="Shows the next Full Moon for your region", guild=discord.Object(id=GUILD_ID))
 async def nextmoon(interaction: discord.Interaction):
     region_data = get_user_region(interaction.user)
-    tz = region_data["tz"] if region_data else "UTC"
-    emoji = region_data["emoji"] if region_data else "🌙"
-    color = region_data["color"] if region_data else 0x95a5a6
+    if not region_data:
+        await interaction.response.send_message("⚠️ No region role detected. Please contact an admin.", ephemeral=True)
+        return
+
+    tz = region_data["tz"]
+    emoji = region_data["emoji"]
+    color = region_data["color"]
+    region_name = region_data["name"]
 
     fm = next_full_moon_for_tz(tz)
     phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
-    await interaction.response.send_message(f"{emoji} Next Full Moon for your region: **{format_date(fm)}** {phase_emoji}")
+
+    await interaction.response.send_message(
+        f"{emoji} Next Full Moon for your region: **{format_date(fm)}** {phase_emoji}\n"
+        f"Region: **{region_name}** | Timezone: **{tz}**"
+    )
 
 # -----------------------
 # On Ready
