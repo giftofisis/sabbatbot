@@ -69,8 +69,19 @@ async def daily_check():
         )
 
 @bot.event
+@bot.event
 async def on_ready():
-    print(f"{bot.user} is online.")
+    print(f"{bot.user} is online.")  # existing log
+
+    # --- TEST MESSAGE ---
+    channel = bot.get_channel(CHANNEL_ID)
+    if channel:
+        await channel.send("✅ Test: I am online and can send messages here!")
+    else:
+        print("❌ Channel not found. Check CHANNEL_ID.")
+    
+    # Start your daily reminder loop (keep this)
     daily_check.start()
+
 
 bot.run(TOKEN)
