@@ -3,7 +3,6 @@ from discord.ext import tasks, commands
 import datetime
 import ephem
 import os
-
 # --- Environment Variables ---
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
