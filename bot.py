@@ -254,29 +254,7 @@ class ReminderButtons(discord.ui.View):
         await interaction.response.send_message(f"💫 {quote}", ephemeral=True)
 
 # -----------------------
-# /reminder Command
-# -----------------------
-@tree.command(name="reminder", description="Get an interactive reminder", guild=discord.Object(id=GUILD_ID))
-async def reminder(interaction: discord.Interaction):
-    region_data = get_user_region(interaction.user)
-    if not region_data:
-        await interaction.response.send_message("⚠️ No region role detected. Please contact an admin.", ephemeral=True)
-        return
-    emoji = region_data["emoji"]
-    color = region_data["color"]
-    region_name = region_data["name"]
-    tz = region_data["tz"]
-    today = datetime.datetime.now(ZoneInfo(tz)).date()
-    description = (
-        f"Today is **{format_date(today)}**\n"
-        f"Region: **{region_name}** | Timezone: **{tz}**\n"
-        f"{random.choice(QUOTES)}"
-    )
-    embed = discord.Embed(title=f"{emoji} Daily Reminder", description=description, color=color)
-    await interaction.response.send_message(embed=embed, view=ReminderButtons(region_data))
-
-# -----------------------
-# Daily Reminder DM Task
+# Daily Reminder DM Task (Redesigned Embed)
 # -----------------------
 async def post_daily_reminder_dm(member_id):
     guild = bot.get_guild(GUILD_ID)
@@ -291,14 +269,115 @@ async def post_daily_reminder_dm(member_id):
     emoji = region_data["emoji"]
     color = region_data["color"]
     region_name = region_data["name"]
-    description = f"Good morning! 🌞 Today is **{format_date(today)}**\nRegion: **{region_name}** | Timezone: **{tz}**\n{random.choice(QUOTES)}"
-    embed = discord.Embed(title=f"{emoji} Daily Reminder", description=description, color=color)
+
+    # Redesigned embed
+    embed = discord.Embed(
+        title=f"{emoji} Daily Reminder — {region_name}",
+        color=color
+    )
+
+    embed.add_field(
+        name="📅 Date & Timezone",
+        value=f"{format_date(today)} | {region_data['tz']}",
+        inline=False
+    )
+
+    # Next full moon
+    next_moon = next_full_moon_for_tz(region_data['tz'])
+    moon_emoji = moon_phase_emoji(datetime.datetime.now(tz))
+    embed.add_field(
+        name="🌕 Next Full Moon",
+        value=f"{format_date(next_moon)} {moon_emoji}",
+        inline=True
+    )
+
+    # Next Sabbat
+    sabbats = get_sabbat_dates(today.year)
+    upcoming_sabbat = min((d for d in sabbats.values() if d >= today), default=None)
+    sabbat_name = next((name for name, d in sabbats.items() if d == upcoming_sabbat), "Unknown")
+    embed.add_field(
+        name="🔮 Next Sabbat",
+        value=f"{sabbat_name} — {format_date(upcoming_sabbat)}",
+        inline=True
+    )
+
+    # Daily quote
+    embed.add_field(
+        name="💫 Daily Quote",
+        value=f"{random.choice(QUOTES)}",
+        inline=False
+    )
+
     try:
         dm = await member.create_dm()
         await dm.send(embed=embed, view=ReminderButtons(region_data))
-    except:
-        pass
+    except Exception as e:
+        print(f"Failed to send daily reminder to {member}: {e}")
 
+# -----------------------
+# /reminder Command
+# -----------------------
+@tree.command(name="reminder", description="Get an interactive reminder", guild=discord.Object(id=GUILD_ID))
+async def reminder(interaction: discord.Interaction):
+    region_data = get_user_region(interaction.user)
+    if not region_data:
+        await interaction.response.send_message("⚠️ No region role detected. Please complete onboarding first.", ephemeral=True)
+        return
+
+    tz = ZoneInfo(region_data["tz"])
+    today = datetime.datetime.now(tz).date()
+    emoji = region_data["emoji"]
+    color = region_data["color"]
+    region_name = region_data["name"]
+
+    # Embed matches redesigned DM
+    embed = discord.Embed(
+        title=f"{emoji} Daily Reminder — {region_name}",
+        color=color
+    )
+
+    embed.add_field(
+        name="📅 Date & Timezone",
+        value=f"{format_date(today)} | {region_name} | {region_data['tz']}",
+        inline=False
+    )
+
+    next_moon = next_full_moon_for_tz(region_data['tz'])
+    moon_emoji = moon_phase_emoji(datetime.datetime.now(tz))
+    embed.add_field(
+        name="🌕 Next Full Moon",
+        value=f"{format_date(next_moon)} {moon_emoji}",
+        inline=True
+    )
+
+    sabbats = get_sabbat_dates(today.year)
+    upcoming_sabbat = min((d for d in sabbats.values() if d >= today), default=None)
+    sabbat_name = next((name for name, d in sabbats.items() if d == upcoming_sabbat), "Unknown")
+    embed.add_field(
+        name="🔮 Next Sabbat",
+        value=f"{sabbat_name} — {format_date(upcoming_sabbat)}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="💫 Daily Quote",
+        value=f"{random.choice(QUOTES)}",
+        inline=False
+    )
+
+    await interaction.response.send_message(embed=embed, view=ReminderButtons(region_data))
+
+# -----------------------
+# /test_reminder Command
+# -----------------------
+@tree.command(name="test_reminder", description="Send yourself a test daily reminder DM", guild=discord.Object(id=GUILD_ID))
+async def test_reminder(interaction: discord.Interaction):
+    await post_daily_reminder_dm(interaction.user.id)
+    await interaction.response.send_message("✅ Test reminder sent to your DMs!", ephemeral=True)
+
+# -----------------------
+# Daily Reminder Scheduler
+# -----------------------
 @tasks.loop(minutes=1)
 async def daily_reminder_task():
     for member_id in REMINDER_SUBSCRIPTIONS:
@@ -352,4 +431,4 @@ async def on_ready():
 # -----------------------
 # Run Bot
 # -----------------------
-bot.run(TOKEN)
+bot.run(TOKEN)  # Line 355
