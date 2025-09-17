@@ -4,7 +4,16 @@ import datetime
 import ephem
 import os
 
+intents = discord.Intents.default()
+intents.message_content = True   # ✅ allow command parsing
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("❌ DISCORD_BOT_TOKEN environment variable is missing!")
+bot.run(TOKEN)
+
 
 # Ensure channel is set
 CHANNEL_ID = os.getenv("CHANNEL_ID")
