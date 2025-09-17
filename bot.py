@@ -16,9 +16,10 @@ GUILD_ID = int(os.getenv("GUILD_ID"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
 # -----------------------
-# Bot Setup
+# Bot Setup with Intents
 # -----------------------
 intents = discord.Intents.default()
+intents.message_content = True  # Enable Message Content Intent
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
