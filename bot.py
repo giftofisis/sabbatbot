@@ -17,13 +17,11 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+DB_FILE = "bot_data.db"
 
 # -----------------------
 # SQLite Initialization
 # -----------------------
-DB_FILE = "bot_data.db"
-
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -53,39 +51,48 @@ def init_db():
     conn.close()
     print("✅ Database initialized.")
 
-# -----------------------
-# Load Cogs
-# -----------------------
-async def load_cogs():
-    for cog in ["cogs.onboarding", "cogs.reminders", "cogs.commands"]:
-        try:
-            await bot.load_extension(cog)
-            print(f"✅ Loaded {cog}")
-        except Exception as e:
-            print(f"❌ Failed to load {cog}: {e}")
 
 # -----------------------
-# On Ready Event
+# Custom Bot Class
 # -----------------------
-@bot.event
-async def on_ready():
-    print(f"{bot.user} is online.")
-    await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-    print("✅ Commands synced.")
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=intents)
 
-    # Start reminder loops if RemindersCog is loaded
-    cog = bot.get_cog("RemindersCog")
-    if cog and hasattr(cog, "daily_loop"):
-        cog.daily_loop.start()
-        print("🌙 Daily reminder loop started.")
+    async def setup_hook(self):
+        # Load cogs
+        for cog in ["cogs.onboarding", "cogs.reminders", "cogs.commands"]:
+            try:
+                await self.load_extension(cog)
+                print(f"✅ Loaded {cog}")
+            except Exception as e:
+                print(f"❌ Failed to load {cog}: {e}")
+
+        # Sync commands to guild (faster than global sync)
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+        print(f"✅ Slash commands synced to guild {GUILD_ID}")
+
+    async def on_ready(self):
+        print(f"🤖 {self.user} is online and ready!")
+
+        # Start reminder loops if RemindersCog is loaded
+        cog = self.get_cog("RemindersCog")
+        if cog and hasattr(cog, "daily_loop"):
+            if not cog.daily_loop.is_running():
+                cog.daily_loop.start()
+                print("🌙 Daily reminder loop started.")
+
 
 # -----------------------
 # Async Main
 # -----------------------
 async def main():
     init_db()
-    await load_cogs()
-    await bot.start(TOKEN)
+    bot = MyBot()
+    async with bot:
+        await bot.start(TOKEN)
 
 if __name__ == "__main__":
     asyncio.run(main())
