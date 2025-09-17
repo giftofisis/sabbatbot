@@ -5,8 +5,16 @@ import ephem
 import os
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-CHANNEL_ID = int(os.getenv("1417882934131818577"))
-ROLE_ID = int(os.getenv("ROLE_ID", 0))  # optional
+
+# Ensure channel is set
+CHANNEL_ID = os.getenv("CHANNEL_ID")
+if not CHANNEL_ID:
+    raise ValueError("❌ CHANNEL_ID environment variable is missing!")
+CHANNEL_ID = int(CHANNEL_ID)
+
+# Role ID optional
+ROLE_ID = os.getenv("ROLE_ID")
+ROLE_ID = int(ROLE_ID) if ROLE_ID else 0
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
