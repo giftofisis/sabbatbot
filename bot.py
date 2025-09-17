@@ -25,14 +25,49 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 # -----------------------
-# Regions & Sabbats
+# Regions, Roles, Channels, Sabbats
 # -----------------------
 REGIONS = {
-    "NA": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🇺🇸", "color": 0x2ecc71},
-    "SA": {"name": "South America", "role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
-    "EU": {"name": "Europe", "role_id": 1416439011517534288, "tz": "Europe/London", "emoji": "🍀", "color": 0x3498db},
-    "AF": {"name": "Africa", "role_id": 1416439116043649224, "tz": "Africa/Johannesburg", "emoji": "🌍", "color": 0xf1c40f},
-    "OC": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
+    "NA": {
+        "name": "North America",
+        "role_id": 416438886397251768,
+        "tz": "America/New_York",
+        "emoji": "🇺🇸",
+        "color": 0x2ecc71,
+        "channels": [1413836065382334524, 1415997893692883026, 1414325724491419678]
+    },
+    "SA": {
+        "name": "South America",
+        "role_id": 1416438925140164809,
+        "tz": "America/Sao_Paulo",
+        "emoji": "🌴",
+        "color": 0xe67e22,
+        "channels": [1413836140774948884, 1415997918229565500, 1414326159340212286]
+    },
+    "AF": {
+        "name": "Africa",
+        "role_id": 1416439116043649224,
+        "tz": "Africa/Johannesburg",
+        "emoji": "🌍",
+        "color": 0xf1c40f,
+        "channels": [1413836216394190878, 1415997931294560348, 1414326177103085751]
+    },
+    "EU": {
+        "name": "Europe",
+        "role_id": 1416439011517534288,
+        "tz": "Europe/London",
+        "emoji": "🍀",
+        "color": 0x3498db,
+        "channels": [1413836237512507445, 1415997967940194387, 1414326204210614443]
+    },
+    "OC": {
+        "name": "Oceania & Asia",
+        "role_id": 1416439141339758773,
+        "tz": "Australia/Sydney",
+        "emoji": "🌺",
+        "color": 0x9b59b6,
+        "channels": [1413836262313431100, 1416059330561839214, 1414326225069015121]
+    },
 }
 
 SABBATS = {
@@ -55,7 +90,7 @@ QUOTES = [
 ]
 
 # -----------------------
-# Helpers
+# Helper Functions
 # -----------------------
 def format_date(d: datetime.date) -> str:
     return d.strftime("%-d %B %Y")
@@ -90,6 +125,23 @@ def get_user_region(member):
     user_roles = [role.id for role in member.roles]
     return next((data for data in REGIONS.values() if data["role_id"] in user_roles), None)
 
+async def update_channel_access(member, selected_region_key):
+    guild = bot.get_guild(GUILD_ID)
+
+    # Remove access to all region channels first
+    for data in REGIONS.values():
+        for channel_id in data["channels"]:
+            channel = guild.get_channel(channel_id)
+            if channel:
+                await channel.set_permissions(member, overwrite=None)
+
+    # Grant access to the selected region's channels
+    region_data = REGIONS[selected_region_key]
+    for channel_id in region_data["channels"]:
+        channel = guild.get_channel(channel_id)
+        if channel:
+            await channel.set_permissions(member, view_channel=True, connect=True, send_messages=True)
+
 # -----------------------
 # Onboarding Buttons
 # -----------------------
@@ -104,15 +156,22 @@ class OnboardingButton(discord.ui.Button):
         region_data = REGIONS[self.region_key]
         role = guild.get_role(region_data["role_id"])
 
-        # Remove previous region roles
+        # Remove previous roles
         for rdata in REGIONS.values():
             prev_role = guild.get_role(rdata["role_id"])
             if prev_role in self.member.roles:
                 await self.member.remove_roles(prev_role)
 
+        # Assign new role
         await self.member.add_roles(role)
+
+        # Update channel access
+        await update_channel_access(self.member, self.region_key)
+
+        # Confirmation
         await interaction.response.send_message(
-            f"✅ You have been assigned the role for **{region_data['name']}**.", ephemeral=True
+            f"✅ You have been assigned the role for **{region_data['name']}** "
+            f"and granted access to your region's channels.", ephemeral=True
         )
         self.view.stop()
 
@@ -123,15 +182,12 @@ class OnboardingView(discord.ui.View):
         for key, data in REGIONS.items():
             self.add_item(OnboardingButton(label=data["name"], emoji=data["emoji"], member=member, region_key=key))
 
-# -----------------------
-# Onboarding Handlers
-# -----------------------
 async def start_onboarding(member):
     try:
         dm_channel = await member.create_dm()
         embed = discord.Embed(
             title="Welcome! 🌙",
-            description="Please select your region by clicking one of the buttons below to receive your role.",
+            description="Please select your region by clicking one of the buttons below to receive your role and channel access.",
             color=0x9b59b6
         )
         await dm_channel.send(embed=embed, view=OnboardingView(member))
