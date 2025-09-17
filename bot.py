@@ -35,6 +35,12 @@ REGIONS = {
     "OC": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
 }
 
+ZODIACS = {
+    "Aries": "♈", "Taurus": "♉", "Gemini": "♊", "Cancer": "♋",
+    "Leo": "♌", "Virgo": "♍", "Libra": "♎", "Scorpio": "♏",
+    "Sagittarius": "♐", "Capricorn": "♑", "Aquarius": "♒", "Pisces": "♓"
+}
+
 SABBATS = {
     "Imbolc": (2, 1),
     "Ostara": (3, 20),
@@ -143,13 +149,7 @@ def get_user_preferences(user_id):
     conn.close()
     if row:
         region, zodiac, hour, days, subscribed = row
-        return {
-            "region": region,
-            "zodiac": zodiac,
-            "hour": hour,
-            "days": days.split(","),
-            "subscribed": bool(subscribed)
-        }
+        return {"region": region, "zodiac": zodiac, "hour": hour, "days": days.split(","), "subscribed": bool(subscribed)}
     return None
 
 def set_subscription(user_id, status: bool):
@@ -202,7 +202,7 @@ class OnboardingButton(discord.ui.Button):
         guild = bot.get_guild(GUILD_ID)
         region_data = REGIONS[self.region_key]
         role = guild.get_role(region_data["role_id"])
-        # Remove previous roles
+        # Remove previous region roles
         for rdata in REGIONS.values():
             prev_role = guild.get_role(rdata["role_id"])
             if prev_role in self.member.roles:
@@ -210,8 +210,9 @@ class OnboardingButton(discord.ui.Button):
         await self.member.add_roles(role)
         save_user_preferences(self.member.id, region=self.region_key)
         await interaction.response.send_message(
-            f"✅ You have been assigned the role for **{region_data['name']}**.", ephemeral=True
+            f"✅ You have been assigned the role for **{region_data['name']}**.\nNow select your Zodiac sign:", ephemeral=True
         )
+        await self.member.send(embed=discord.Embed(title="Select Your Zodiac", description="Click your Zodiac below:", color=0x9b59b6), view=ZodiacView(self.member))
         self.view.stop()
 
 class OnboardingView(discord.ui.View):
@@ -220,6 +221,25 @@ class OnboardingView(discord.ui.View):
         self.member = member
         for key, data in REGIONS.items():
             self.add_item(OnboardingButton(label=data["name"], emoji=data["emoji"], member=member, region_key=key))
+
+class ZodiacButton(discord.ui.Button):
+    def __init__(self, label, emoji, member):
+        super().__init__(label=label, emoji=emoji, style=discord.ButtonStyle.primary)
+        self.member = member
+
+    async def callback(self, interaction: discord.Interaction):
+        prefs = get_user_preferences(self.member.id) or {}
+        region = prefs.get("region")
+        save_user_preferences(self.member.id, region=region, zodiac=self.label)
+        await interaction.response.send_message(f"✅ Zodiac **{self.label}** assigned! You will now receive daily reminders.", ephemeral=True)
+        self.view.stop()
+
+class ZodiacView(discord.ui.View):
+    def __init__(self, member, timeout=300):
+        super().__init__(timeout=timeout)
+        self.member = member
+        for name, emoji in ZODIACS.items():
+            self.add_item(ZodiacButton(label=name, emoji=emoji, member=member))
 
 # -----------------------
 # Onboarding Handlers
@@ -257,10 +277,12 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/submit_quote <text>", value="Submit an inspirational quote for reminders.", inline=False)
     embed.add_field(name="/submit_journal <text>", value="Submit a journal prompt for daily reminders.", inline=False)
     embed.add_field(name="/unsubscribe", value="Stop receiving daily DM reminders.", inline=False)
+    embed.add_field(name="/test", value="Test daily reminders and list all commands.", inline=False)
     await interaction.user.send(embed=embed)
     await interaction.response.send_message("✅ Help sent to your DMs.", ephemeral=True)
+
 # -----------------------
-# Reminder Buttons
+# Reminder Buttons & Commands
 # -----------------------
 class ReminderButtons(discord.ui.View):
     def __init__(self, region_data):
@@ -313,19 +335,17 @@ async def reminder(interaction: discord.Interaction):
     if not region_data:
         await interaction.response.send_message("⚠️ Region not set. Please complete onboarding.", ephemeral=True)
         return
-    emoji = region_data["emoji"]
-    color = region_data["color"]
     tz = region_data["tz"]
     today = datetime.datetime.now(ZoneInfo(tz)).date()
     embed = discord.Embed(
-        title=f"{emoji} Daily Reminder",
+        title=f"{region_data['emoji']} Daily Reminder",
         description=f"Good morning, {interaction.user.name}! 🌞\nToday is **{format_date(today)}**\nRegion: **{region_data['name']}** | Timezone: **{tz}**\n\n💫 Quote: {random.choice(get_all_quotes())}\n📝 Journal Prompt: {random.choice(get_all_journal_prompts())}",
-        color=color
+        color=region_data["color"]
     )
     await interaction.response.send_message(embed=embed, view=ReminderButtons(region_data))
 
 # -----------------------
-# /submit_quote Command
+# /submit_quote & /submit_journal
 # -----------------------
 @tree.command(name="submit_quote", description="Submit an inspirational quote", guild=discord.Object(id=GUILD_ID))
 @app_commands.describe(quote="The quote text to submit")
@@ -333,9 +353,6 @@ async def submit_quote(interaction: discord.Interaction, quote: str):
     add_quote(quote)
     await interaction.response.send_message("✅ Quote submitted successfully.", ephemeral=True)
 
-# -----------------------
-# /submit_journal Command
-# -----------------------
 @tree.command(name="submit_journal", description="Submit a journal prompt", guild=discord.Object(id=GUILD_ID))
 @app_commands.describe(prompt="The journal prompt text to submit")
 async def submit_journal(interaction: discord.Interaction, prompt: str):
@@ -355,7 +372,7 @@ async def unsubscribe(interaction: discord.Interaction):
 # -----------------------
 @tree.command(name="status", description="Shows bot status and upcoming events", guild=discord.Object(id=GUILD_ID))
 async def status(interaction: discord.Interaction):
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     embed = discord.Embed(title="🌙 Bot Status", color=0x1abc9c)
     embed.add_field(name="Current UTC Time", value=now.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
     guild = interaction.guild
@@ -374,7 +391,7 @@ async def status(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # -----------------------
-# Daily Reminder Task
+# Daily Reminder Loop
 # -----------------------
 async def send_daily_reminder(user_id, prefs):
     user = bot.get_user(user_id)
@@ -409,6 +426,19 @@ async def daily_reminder_loop():
         await send_daily_reminder(user_id, prefs)
 
 # -----------------------
+# /test Command
+# -----------------------
+@tree.command(name="test", description="Test daily reminder & list all commands", guild=discord.Object(id=GUILD_ID))
+async def test_command(interaction: discord.Interaction):
+    prefs = get_user_preferences(interaction.user.id)
+    if not prefs:
+        await interaction.response.send_message("⚠️ Complete onboarding first.", ephemeral=True)
+        return
+    await send_daily_reminder(interaction.user.id, prefs)
+    cmds = ", ".join(cmd.name for cmd in tree.walk_commands())
+    await interaction.followup.send(f"✅ Commands available: {cmds}", ephemeral=True)
+
+# -----------------------
 # On Ready Event
 # -----------------------
 @bot.event
@@ -416,10 +446,9 @@ async def on_ready():
     print(f"{bot.user} is online.")
     await tree.sync(guild=discord.Object(id=GUILD_ID))
     daily_reminder_loop.start()
-    # Optional startup DM to all users or server announcement
     print("🌙 Daily reminder loop started.")
 
 # -----------------------
 # Run Bot
 # -----------------------
-bot.run(TOKEN)  # Line 434
+bot.run(TOKEN)
