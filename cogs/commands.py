@@ -2,15 +2,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
-from .db import (
-    get_user_preferences,
-    set_subscription,
-    add_quote,
-    add_journal_prompt,
-    get_all_quotes,
-    get_all_journal_prompts,
-)
-from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz, count_users_in_role
+from cogs.db import get_user_preferences, set_subscription, add_quote, add_journal_prompt, get_all_quotes, get_all_journal_prompts
+from cogs.reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz, count_users_in_role
 from zoneinfo import ZoneInfo
 import datetime
 
@@ -26,19 +19,21 @@ class CommandsCog(commands.Cog):
         prefs = get_user_preferences(interaction.user.id)
         if not prefs or not prefs["subscribed"]:
             await interaction.response.send_message(
-                "⚠️ You are not subscribed. Use `/onboard` to set your preferences.", ephemeral=True
+                "⚠️ You are not subscribed. Use `/onboard` to set your preferences.",
+                ephemeral=True
             )
             return
 
         region_data = REGIONS.get(prefs["region"])
         if not region_data:
             await interaction.response.send_message(
-                "⚠️ Region not set. Please complete onboarding.", ephemeral=True
+                "⚠️ Region not set. Please complete onboarding.",
+                ephemeral=True
             )
             return
 
-        tz = region_data["tz"]
-        today = datetime.datetime.now(ZoneInfo(tz)).date()
+        tz = ZoneInfo(region_data["tz"])
+        today = datetime.datetime.now(tz).date()
         embed = discord.Embed(
             title=f"{region_data['emoji']} Daily Reminder",
             description=f"Good morning, {interaction.user.name}! 🌞\n"
@@ -74,20 +69,18 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="unsubscribe", description="Stop receiving daily reminders")
     async def unsubscribe(self, interaction: discord.Interaction):
         set_subscription(interaction.user.id, False)
-        await interaction.response.send_message(
-            "❌ You have unsubscribed from daily reminders.", ephemeral=True
-        )
+        await interaction.response.send_message("❌ You have unsubscribed from daily reminders.", ephemeral=True)
 
     # -----------------------
     # /status Command
     # -----------------------
-    @app_commands.command(name="status", description="Shows bot status and upcoming events")
+    @app_commands.command(name="status", description="Show bot status and upcoming events")
     async def status(self, interaction: discord.Interaction):
         now = datetime.datetime.now(datetime.timezone.utc)
         embed = discord.Embed(title="🌙 Bot Status", color=0x1abc9c)
         embed.add_field(name="Current UTC Time", value=now.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
-
         guild = interaction.guild
+
         for data in REGIONS.values():
             tz = ZoneInfo(data["tz"])
             today = datetime.datetime.now(tz).date()
@@ -103,6 +96,7 @@ class CommandsCog(commands.Cog):
                       f"Users in region: {users_count}",
                 inline=False
             )
+
         await interaction.response.send_message(embed=embed)
 
     # -----------------------
@@ -117,7 +111,6 @@ class CommandsCog(commands.Cog):
         embed.add_field(name="/submit_quote <text>", value="Submit an inspirational quote for reminders.", inline=False)
         embed.add_field(name="/submit_journal <text>", value="Submit a journal prompt for daily reminders.", inline=False)
         embed.add_field(name="/unsubscribe", value="Stop receiving daily DM reminders.", inline=False)
-
         await interaction.user.send(embed=embed)
         await interaction.response.send_message("✅ Help sent to your DMs.", ephemeral=True)
 
@@ -131,19 +124,12 @@ class CommandsCog(commands.Cog):
             await interaction.response.send_message("⚠️ You need to complete onboarding first.", ephemeral=True)
             return
 
-        # Trigger daily reminder manually
         cog = self.bot.get_cog("RemindersCog")
         if cog:
             await cog.send_daily_reminder(interaction.user.id, prefs)
 
-        # List all commands
         commands_list = [cmd.name for cmd in self.bot.tree.walk_commands()]
-        await interaction.followup.send(
-            f"✅ All commands are available: {', '.join(commands_list)}", ephemeral=True
-        )
+        await interaction.followup.send(f"✅ All commands are available: {', '.join(commands_list)}", ephemeral=True)
 
-# -----------------------
-# Setup
-# -----------------------
 async def setup(bot):
     await bot.add_cog(CommandsCog(bot))

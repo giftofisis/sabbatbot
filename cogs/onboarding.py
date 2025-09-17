@@ -1,10 +1,10 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from .db import save_user_preferences
+from cogs.db import save_user_preferences
 
 # -----------------------
-# Regions & Zodiac
+# Region & Zodiac Data
 # -----------------------
 REGIONS = {
     "NA": {"name": "North America", "role_id": 1416438886397251768, "emoji": "🇺🇸"},
@@ -54,12 +54,12 @@ class OnboardingCog(commands.Cog):
                 f"✅ Region **{region_data['name']}** assigned!", ephemeral=True
             )
 
-            # Prompt zodiac selection
+            # Prompt Zodiac selection
+            view = OnboardingCog.ZodiacView(self.member)
             try:
-                dm = await self.member.create_dm()
-                await dm.send("Choose your Zodiac sign:", view=OnboardingCog.ZodiacView(self.member))
+                await self.member.send("Choose your Zodiac sign:", view=view)
             except discord.Forbidden:
-                print(f"⚠️ Cannot DM {self.member}")
+                print(f"Cannot DM {self.member}")
 
             self.view.stop()
 
@@ -79,9 +79,7 @@ class OnboardingCog(commands.Cog):
 
         async def callback(self, interaction: discord.Interaction):
             save_user_preferences(self.member.id, zodiac=self.label)
-            await interaction.response.send_message(
-                f"✅ Zodiac **{self.label}** saved!", ephemeral=True
-            )
+            await interaction.response.send_message(f"✅ Zodiac **{self.label}** saved!", ephemeral=True)
             self.view.stop()
 
     class ZodiacView(discord.ui.View):
@@ -91,32 +89,27 @@ class OnboardingCog(commands.Cog):
                 self.add_item(OnboardingCog.ZodiacButton(label=name, emoji=emoji, member=member))
 
     # -------------------
-    # Start Onboarding
+    # Onboarding Start
     # -------------------
     async def start_onboarding(self, member: discord.Member):
         try:
             dm = await member.create_dm()
-            await dm.send("Welcome! Select your region:", view=OnboardingCog.RegionView(member, self.bot))
+            await dm.send("Welcome! Select your region:", view=self.RegionView(member, self.bot))
         except discord.Forbidden:
-            print(f"⚠️ Cannot DM {member}")
+            print(f"Cannot DM {member}")
 
     # -------------------
-    # Auto Onboarding on Join
+    # Event Listeners & Commands
     # -------------------
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         await self.start_onboarding(member)
 
-    # -------------------
-    # Manual /onboard Command
-    # -------------------
     @app_commands.command(name="onboard", description="Start onboarding manually")
     async def onboard(self, interaction: discord.Interaction):
         await self.start_onboarding(interaction.user)
         await interaction.response.send_message("✅ Check your DMs for onboarding!", ephemeral=True)
 
-# -----------------------
-# Setup
-# -----------------------
+
 async def setup(bot):
     await bot.add_cog(OnboardingCog(bot))

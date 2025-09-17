@@ -4,7 +4,7 @@ import datetime
 import ephem
 from zoneinfo import ZoneInfo
 import random
-from .db import get_user_preferences, get_all_quotes, get_all_journal_prompts, sqlite3
+from cogs.db import get_user_preferences, get_all_quotes, get_all_journal_prompts, sqlite3
 
 # -----------------------
 # Regions & Sabbats
@@ -55,10 +55,6 @@ def moon_phase_emoji(date: datetime.date) -> str:
         return "🌘"
     else:
         return "🌑"
-
-def count_users_in_role(guild: discord.Guild, role_id: int) -> int:
-    role = guild.get_role(role_id)
-    return len(role.members) if role else 0
 
 # -----------------------
 # Reminder Buttons
@@ -149,8 +145,10 @@ class RemindersCog(commands.Cog):
     async def before_daily_loop(self):
         await self.bot.wait_until_ready()
 
-# -----------------------
-# Setup
-# -----------------------
+# Optional helper for status commands
+def count_users_in_role(guild, role_id):
+    role = guild.get_role(role_id)
+    return len(role.members) if role else 0
+
 async def setup(bot):
     await bot.add_cog(RemindersCog(bot))
