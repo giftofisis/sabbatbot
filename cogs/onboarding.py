@@ -7,11 +7,11 @@ from cogs.db import save_user_preferences
 GUILD_ID = int(os.getenv("GUILD_ID"))
 
 REGIONS = {
-    "NA": {"name": "North America", "role_id": 1416438886397251768, "emoji": "🇺🇸"},
-    "SA": {"name": "South America", "role_id": 1416438925140164809, "emoji": "🌴"},
-    "EU": {"name": "Europe", "role_id": 1416439011517534288, "emoji": "🍀"},
-    "AF": {"name": "Africa", "role_id": 1416439116043649224, "emoji": "🌍"},
-    "OC": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "emoji": "🌺"},
+    "North America": {"name": "North America", "role_id": 1416438886397251768, "emoji": "🇺🇸"},
+    "South America": {"name": "South America", "role_id": 1416438925140164809, "emoji": "🌴"},
+    "Europe": {"name": "Europe", "role_id": 1416439011517534288, "emoji": "🍀"},
+    "Africa": {"name": "Africa", "role_id": 1416439116043649224, "emoji": "🌍"},
+    "Oceania & Asia": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "emoji": "🌺"},
 }
 
 ZODIACS = {
