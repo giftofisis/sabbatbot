@@ -13,14 +13,14 @@ import random
 # -----------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # Channel for startup message
 
 # -----------------------
 # Bot Setup with Intents
 # -----------------------
 intents = discord.Intents.default()
 intents.message_content = True  # Enable privileged intent
-intents.members = True  # Needed to count users per role
+intents.members = True  # Needed for onboarding role assignment
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
@@ -167,4 +167,54 @@ async def status(interaction: discord.Interaction):
         today = datetime.datetime.now(tz).date()
         sabbats = get_sabbat_dates(today.year)
         upcoming_sabbat = min((d for d in sabbats.values() if d >= today), default=None)
-        next_moon = next_full_moon_for_tz(data["tz"]_
+        next_moon = next_full_moon_for_tz(data["tz"])
+        users_count = count_users_in_role(guild, data["role_id"])
+        embed.add_field(
+            name=f"{data['emoji']} {data['name']} ({users_count} users)",
+            value=f"Next Sabbat: {format_date(upcoming_sabbat)}\nNext Full Moon: {format_date(next_moon)}\nTimezone: {data['tz']}",
+            inline=False
+        )
+    await interaction.response.send_message(embed=embed)
+
+# -----------------------
+# Onboarding Flow
+# -----------------------
+@bot.event
+async def on_member_join(member):
+    try:
+        dm_channel = await member.create_dm()
+        region_options = "\n".join([f"{key}: {data['name']}" for key, data in REGIONS.items()])
+        await dm_channel.send(
+            f"Welcome {member.name}! 🌙\nPlease reply with your region code to receive the correct role:\n{region_options}"
+        )
+
+        def check(msg):
+            return msg.author == member and msg.channel == dm_channel and msg.content.upper() in REGIONS.keys()
+
+        reply = await bot.wait_for("message", check=check, timeout=300)  # 5 minutes
+        selected_region = REGIONS[reply.content.upper()]
+        guild = bot.get_guild(GUILD_ID)
+        role = guild.get_role(selected_region["role_id"])
+        await member.add_roles(role)
+        await dm_channel.send(f"✅ You have been assigned the role for **{selected_region['name']}**.")
+    except asyncio.TimeoutError:
+        await dm_channel.send("⏰ You did not respond in time. Please contact an admin to assign your region role.")
+
+# -----------------------
+# On Ready
+# -----------------------
+@bot.event
+async def on_ready():
+    print(f"{bot.user} is online.")
+    await tree.sync(guild=discord.Object(id=GUILD_ID))
+
+    # Send startup message in channel
+    guild = bot.get_guild(GUILD_ID)
+    channel = guild.get_channel(CHANNEL_ID)
+    if channel:
+        asyncio.create_task(channel.send("🌙 Bot is online and fully operational!"))
+
+# -----------------------
+# Run Bot
+# -----------------------
+bot.run(TOKEN)
