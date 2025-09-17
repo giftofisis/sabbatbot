@@ -1,11 +1,11 @@
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
 from cogs.db import save_user_preferences
 
-# -----------------------
-# Region & Zodiac Data
-# -----------------------
+GUILD_ID = int(os.getenv("GUILD_ID"))
+
 REGIONS = {
     "NA": {"name": "North America", "role_id": 1416438886397251768, "emoji": "🇺🇸"},
     "SA": {"name": "South America", "role_id": 1416438925140164809, "emoji": "🌴"},
@@ -20,16 +20,10 @@ ZODIACS = {
     "Sagittarius": "♐", "Capricorn": "♑", "Aquarius": "♒", "Pisces": "♓"
 }
 
-# -----------------------
-# Onboarding Cog
-# -----------------------
 class OnboardingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # -------------------
-    # Region Buttons
-    # -------------------
     class RegionButton(discord.ui.Button):
         def __init__(self, label, emoji, member, bot):
             super().__init__(label=label, emoji=emoji, style=discord.ButtonStyle.primary)
@@ -37,29 +31,47 @@ class OnboardingCog(commands.Cog):
             self.bot = bot
 
         async def callback(self, interaction: discord.Interaction):
-            guild = self.bot.get_guild(interaction.guild_id)
+            # Use known GUILD_ID to get the guild object even from DMs
+            guild = self.bot.get_guild(GUILD_ID)
+            if guild is None:
+                await interaction.response.send_message("❌ Guild not found. Contact an admin.", ephemeral=True)
+                return
+
             region_data = REGIONS[self.label]
             role = guild.get_role(region_data["role_id"])
+            if role is None:
+                await interaction.response.send_message("❌ Role not found on the server. Contact an admin.", ephemeral=True)
+                return
 
-            # Remove previous region roles
+            # Remove previous region roles (if present)
+            remove_roles = []
             for r in REGIONS.values():
                 prev_role = guild.get_role(r["role_id"])
-                if prev_role in self.member.roles:
-                    await self.member.remove_roles(prev_role)
+                if prev_role and prev_role in self.member.roles:
+                    remove_roles.append(prev_role)
+            if remove_roles:
+                try:
+                    await self.member.remove_roles(*remove_roles)
+                except Exception as e:
+                    print(f"Failed to remove old region roles for {self.member}: {e}")
 
-            await self.member.add_roles(role)
+            try:
+                await self.member.add_roles(role)
+            except Exception as e:
+                print(f"Failed to add role {role} to {self.member}: {e}")
+                await interaction.response.send_message("❌ Failed to assign role. Contact an admin.", ephemeral=True)
+                return
+
+            # Save region (preserve other prefs)
             save_user_preferences(self.member.id, region=self.label)
 
-            await interaction.response.send_message(
-                f"✅ Region **{region_data['name']}** assigned!", ephemeral=True
-            )
+            await interaction.response.send_message(f"✅ Region **{region_data['name']}** assigned!", ephemeral=True)
 
-            # Prompt Zodiac selection
-            view = OnboardingCog.ZodiacView(self.member)
+            # Prompt zodiac selection via DM
             try:
-                await self.member.send("Choose your Zodiac sign:", view=view)
+                await self.member.send("Choose your Zodiac sign:", view=OnboardingCog.ZodiacView(self.member))
             except discord.Forbidden:
-                print(f"Cannot DM {self.member}")
+                print(f"⚠️ Cannot DM {self.member} for zodiac selection.")
 
             self.view.stop()
 
@@ -69,9 +81,6 @@ class OnboardingCog(commands.Cog):
             for key, data in REGIONS.items():
                 self.add_item(OnboardingCog.RegionButton(label=key, emoji=data["emoji"], member=member, bot=bot))
 
-    # -------------------
-    # Zodiac Buttons
-    # -------------------
     class ZodiacButton(discord.ui.Button):
         def __init__(self, label, emoji, member):
             super().__init__(label=label, emoji=emoji, style=discord.ButtonStyle.secondary)
@@ -88,28 +97,26 @@ class OnboardingCog(commands.Cog):
             for name, emoji in ZODIACS.items():
                 self.add_item(OnboardingCog.ZodiacButton(label=name, emoji=emoji, member=member))
 
-    # -------------------
-    # Onboarding Start
-    # -------------------
     async def start_onboarding(self, member: discord.Member):
         try:
-            dm = await member.create_dm()
-            await dm.send("Welcome! Select your region:", view=self.RegionView(member, self.bot))
+            await member.send("Welcome! Select your region:", view=OnboardingCog.RegionView(member, self.bot))
         except discord.Forbidden:
-            print(f"Cannot DM {member}")
+            print(f"⚠️ Cannot DM {member} for onboarding.")
 
-    # -------------------
-    # Event Listeners & Commands
-    # -------------------
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        await self.start_onboarding(member)
+        # auto-run onboarding for members who join the guild with GUILD_ID
+        if member is None:
+            return
+        # Only trigger if member joined the target guild
+        guild = self.bot.get_guild(GUILD_ID)
+        if guild and guild.get_member(member.id):
+            await self.start_onboarding(member)
 
     @app_commands.command(name="onboard", description="Start onboarding manually")
     async def onboard(self, interaction: discord.Interaction):
         await self.start_onboarding(interaction.user)
         await interaction.response.send_message("✅ Check your DMs for onboarding!", ephemeral=True)
-
 
 async def setup(bot):
     await bot.add_cog(OnboardingCog(bot))

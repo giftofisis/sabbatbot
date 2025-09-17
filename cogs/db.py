@@ -1,11 +1,24 @@
 import sqlite3
+from typing import List, Optional, Tuple
 
 DB_FILE = "bot_data.db"
+DEFAULT_DAYS = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
 
-# -----------------------
-# Database Initialization
-# -----------------------
-def init_db():
+DEFAULT_QUOTES = [
+    "🌿 May the Wheel of the Year turn in your favor.",
+    "🌕 Reflect, release, and renew under the Moon's light.",
+    "✨ Blessed be, traveler of the mystical paths.",
+    "🔥 May your rituals be fruitful and your intentions clear.",
+    "🌱 Growth is guided by the cycles of the Earth and Moon"
+]
+
+DEFAULT_PROMPTS = [
+    "What are three things you are grateful for today?",
+    "Reflect on a recent challenge and what you learned.",
+    "What intention do you want to set for today?"
+]
+
+def init_db() -> None:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -32,22 +45,34 @@ def init_db():
     """)
     conn.commit()
     conn.close()
-    print("✅ Database initialized.")
 
-# -----------------------
-# User Preferences
-# -----------------------
-def save_user_preferences(user_id, region=None, zodiac=None, hour=None, days=None):
+def save_user_preferences(user_id: int, region: Optional[str]=None, zodiac: Optional[str]=None,
+                          hour: Optional[int]=None, days: Optional[List[str]]=None) -> None:
+    """
+    Upsert preserving existing values when parameters are None.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    cursor.execute("SELECT region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if row:
+        cur_region, cur_zodiac, cur_hour, cur_days, cur_sub = row
+    else:
+        cur_region, cur_zodiac, cur_hour, cur_days, cur_sub = (None, None, 9, DEFAULT_DAYS, 1)
+
+    new_region = region if region is not None else cur_region
+    new_zodiac = zodiac if zodiac is not None else cur_zodiac
+    new_hour = hour if hour is not None else cur_hour
+    new_days = ",".join(days) if days is not None else cur_days
+
     cursor.execute("""
     INSERT OR REPLACE INTO users (user_id, region, zodiac, reminder_hour, reminder_days, subscribed)
-    VALUES (?, ?, ?, ?, ?, COALESCE((SELECT subscribed FROM users WHERE user_id=?),1))
-    """, (user_id, region, zodiac, hour or 9, ",".join(days) if days else 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', user_id))
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, new_region, new_zodiac, new_hour, new_days, cur_sub))
     conn.commit()
     conn.close()
 
-def get_user_preferences(user_id):
+def get_user_preferences(user_id: int):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE user_id = ?", (user_id,))
@@ -55,45 +80,62 @@ def get_user_preferences(user_id):
     conn.close()
     if row:
         region, zodiac, hour, days, subscribed = row
-        return {"region": region, "zodiac": zodiac, "hour": hour, "days": days.split(","), "subscribed": bool(subscribed)}
+        return {
+            "region": region,
+            "zodiac": zodiac,
+            "hour": hour,
+            "days": days.split(",") if days else DEFAULT_DAYS.split(","),
+            "subscribed": bool(subscribed)
+        }
     return None
 
-def set_subscription(user_id, status: bool):
+def set_subscription(user_id: int, status: bool) -> None:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
     cursor.execute("UPDATE users SET subscribed = ? WHERE user_id = ?", (int(status), user_id))
     conn.commit()
     conn.close()
 
-# -----------------------
-# Quotes & Journal Prompts
-# -----------------------
-def add_quote(quote):
+def add_quote(quote: str) -> None:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
     conn.commit()
     conn.close()
 
-def get_all_quotes():
+def get_all_quotes() -> List[str]:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT quote FROM quotes")
-    quotes = [row[0] for row in cursor.fetchall()]
+    rows = [r[0] for r in cursor.fetchall()]
     conn.close()
-    return quotes
+    # return defaults plus any user-added quotes
+    return DEFAULT_QUOTES + rows
 
-def add_journal_prompt(prompt):
+def add_journal_prompt(prompt: str) -> None:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO journal_prompts (prompt) VALUES (?)", (prompt,))
     conn.commit()
     conn.close()
 
-def get_all_journal_prompts():
+def get_all_journal_prompts() -> List[str]:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT prompt FROM journal_prompts")
-    prompts = [row[0] for row in cursor.fetchall()]
+    rows = [r[0] for r in cursor.fetchall()]
     conn.close()
-    return prompts
+    return DEFAULT_PROMPTS + rows
+
+def get_all_subscribed_users() -> List[Tuple]:
+    """
+    Return list of rows for subscribed users:
+    (user_id, region, zodiac, reminder_hour, reminder_days, subscribed)
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE subscribed = 1")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

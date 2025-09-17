@@ -4,11 +4,8 @@ import datetime
 import ephem
 from zoneinfo import ZoneInfo
 import random
-from cogs.db import get_user_preferences, get_all_quotes, get_all_journal_prompts, sqlite3
+from cogs.db import get_all_subscribed_users, get_all_quotes, get_all_journal_prompts
 
-# -----------------------
-# Regions & Sabbats
-# -----------------------
 REGIONS = {
     "NA": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🇺🇸", "color": 0x2ecc71},
     "SA": {"name": "South America", "role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
@@ -28,9 +25,6 @@ SABBATS = {
     "Yule": (12, 21),
 }
 
-# -----------------------
-# Helper Functions
-# -----------------------
 def format_date(d: datetime.date) -> str:
     return d.strftime("%-d %B %Y")
 
@@ -56,9 +50,10 @@ def moon_phase_emoji(date: datetime.date) -> str:
     else:
         return "🌑"
 
-# -----------------------
-# Reminder Buttons
-# -----------------------
+def count_users_in_role(guild: discord.Guild, role_id: int) -> int:
+    role = guild.get_role(role_id)
+    return len(role.members) if role else 0
+
 class ReminderButtons(discord.ui.View):
     def __init__(self, region_data):
         super().__init__(timeout=None)
@@ -67,8 +62,6 @@ class ReminderButtons(discord.ui.View):
     @discord.ui.button(label="Next Sabbat", style=discord.ButtonStyle.primary)
     async def next_sabbat(self, interaction: discord.Interaction, button: discord.ui.Button):
         tz = self.region_data["tz"]
-        emoji = self.region_data["emoji"]
-        region_name = self.region_data["name"]
         today = datetime.datetime.now(ZoneInfo(tz)).date()
         sabbats = get_sabbat_dates(today.year)
         upcoming = [(n, d) for n, d in sabbats.items() if d >= today]
@@ -76,19 +69,17 @@ class ReminderButtons(discord.ui.View):
             upcoming = list(sabbats.items())
         name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
         await interaction.response.send_message(
-            f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}**",
+            f"{self.region_data['emoji']} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{self.region_data['name']}** | Timezone: **{tz}**",
             ephemeral=True
         )
 
     @discord.ui.button(label="Next Full Moon", style=discord.ButtonStyle.secondary)
     async def next_moon(self, interaction: discord.Interaction, button: discord.ui.Button):
         tz = self.region_data["tz"]
-        emoji = self.region_data["emoji"]
-        region_name = self.region_data["name"]
         fm = next_full_moon_for_tz(tz)
         phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
         await interaction.response.send_message(
-            f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}**",
+            f"{self.region_data['emoji']} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{self.region_data['name']}** | Timezone: **{tz}**",
             ephemeral=True
         )
 
@@ -97,58 +88,70 @@ class ReminderButtons(discord.ui.View):
         quote = random.choice(get_all_quotes())
         await interaction.response.send_message(f"💫 {quote}", ephemeral=True)
 
-# -----------------------
-# Reminders Cog
-# -----------------------
 class RemindersCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.daily_loop.start()
+        # Do NOT start loop here; start it on-ready in bot.py to avoid duplicate starts.
 
-    async def send_daily_reminder(self, user_id, prefs):
+    async def send_daily_reminder(self, user_id: int, prefs: dict, force: bool = False):
         user = self.bot.get_user(user_id)
-        if not user or not prefs["subscribed"]:
+        if user is None:
             return
-        region_data = REGIONS.get(prefs["region"])
-        if not region_data:
+        if not prefs.get("subscribed", False) and not force:
             return
-        tz = ZoneInfo(region_data["tz"])
+        region_key = prefs.get("region")
+        region_data = REGIONS.get(region_key)
+        if not region_data and not force:
+            return
+
+        tz = ZoneInfo(region_data["tz"]) if region_data else ZoneInfo("UTC")
         now = datetime.datetime.now(tz)
-        if now.strftime("%a") not in prefs["days"]:
-            return
-        if now.hour != prefs["hour"]:
-            return
+
+        # If not forced, check day + hour (minute 0)
+        if not force:
+            if now.strftime("%a") not in prefs.get("days", []):
+                return
+            if now.hour != prefs.get("hour", 9) or now.minute != 0:
+                return
+
+        # Build embed
         embed = discord.Embed(
-            title=f"{region_data['emoji']} Daily Reminder",
-            description=f"Good morning, {user.name}! 🌞\nToday is **{format_date(now.date())}**\nRegion: **{region_data['name']}** | Timezone: **{tz}**\n\n💫 Quote: {random.choice(get_all_quotes())}\n📝 Journal Prompt: {random.choice(get_all_journal_prompts())}",
-            color=region_data["color"]
+            title=f"{region_data['emoji'] if region_data else '🌙'} Daily Reminder",
+            description=(
+                f"Good morning, {user.name}! 🌞\n"
+                f"Today is **{format_date(now.date())}**\n"
+                f"Region: **{region_data['name']}** | Timezone: **{region_data['tz']}**\n\n"
+                f"💫 Quote: {random.choice(get_all_quotes())}\n"
+                f"📝 Journal Prompt: {random.choice(get_all_journal_prompts())}"
+            ),
+            color=region_data["color"] if region_data else 0x95a5a6
         )
+
         try:
-            await user.send(embed=embed, view=ReminderButtons(region_data))
-            print(f"✅ Sent reminder to {user.name}")
+            await user.send(embed=embed, view=ReminderButtons(region_data or {"name":"Unknown","tz":"UTC","emoji":"🌙","color":0x95a5a6}))
+            print(f"✅ Sent reminder to {user} ({user.id})")
         except discord.Forbidden:
-            print(f"⚠️ Cannot DM {user.name}")
+            print(f"⚠️ Cannot DM {user} ({user.id})")
+        except Exception as e:
+            print(f"❌ Error sending DM to {user} ({user.id}): {e}")
 
     @tasks.loop(minutes=1)
     async def daily_loop(self):
-        conn = sqlite3.connect("bot_data.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE subscribed = 1")
-        rows = cursor.fetchall()
-        conn.close()
+        rows = get_all_subscribed_users()
         for row in rows:
             user_id, region, zodiac, hour, days, subscribed = row
-            prefs = {"region": region, "zodiac": zodiac, "hour": hour, "days": days.split(","), "subscribed": bool(subscribed)}
-            await self.send_daily_reminder(user_id, prefs)
+            prefs = {
+                "region": region,
+                "zodiac": zodiac,
+                "hour": hour,
+                "days": days.split(",") if days else ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+                "subscribed": bool(subscribed)
+            }
+            await self.send_daily_reminder(user_id, prefs, force=False)
 
     @daily_loop.before_loop
     async def before_daily_loop(self):
         await self.bot.wait_until_ready()
-
-# Optional helper for status commands
-def count_users_in_role(guild, role_id):
-    role = guild.get_role(role_id)
-    return len(role.members) if role else 0
 
 async def setup(bot):
     await bot.add_cog(RemindersCog(bot))
