@@ -172,6 +172,7 @@ async def nextmoon(interaction: discord.Interaction):
     emoji = region_data["emoji"]
     color = region_data["color"]
     region_name = region_data["name"]
+    
 
     fm = next_full_moon_for_tz(tz)
     phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
