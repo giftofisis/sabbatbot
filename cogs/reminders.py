@@ -4,7 +4,7 @@ import datetime
 import ephem
 from zoneinfo import ZoneInfo
 import random
-from .db import get_user_preferences, get_all_quotes, get_all_journal_prompts, sqlite3
+from ..db import get_user_preferences, get_all_quotes, get_all_journal_prompts, sqlite3
 
 # -----------------------
 # Regions & Sabbats
