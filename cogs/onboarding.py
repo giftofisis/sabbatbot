@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from ..db import save_user_preferences, set_subscription
+from db import save_user_preferences, set_subscription
 
 # -----------------------
 # Region & Zodiac Data
