@@ -125,6 +125,42 @@ class CommandsCog(commands.Cog):
             await robust_log(self.bot, f"[ERROR] /help command failed", e)
             await self.safe_send(interaction, "⚠️ Could not send help. Try again later.")
 
+# -----------------------
+# /onboarding_status Command
+# -----------------------
+@app_commands.command(name="onboarding_status", description="Check which members have completed onboarding")
+async def onboarding_status(self, interaction: discord.Interaction):
+    try:
+        # Example: Assuming get_user_preferences returns None if user hasn't onboarded
+        onboarded_users = []
+        not_onboarded_users = []
+        for member in interaction.guild.members:
+            if member.bot:
+                continue
+            prefs = get_user_preferences(member.id)
+            if prefs:
+                onboarded_users.append(member.name)
+            else:
+                not_onboarded_users.append(member.name)
+
+        embed = discord.Embed(title="📝 Onboarding Status", color=0x3498db)
+        embed.add_field(name="✅ Completed Onboarding", value="\n".join(onboarded_users) or "None", inline=False)
+        embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded_users) or "None", inline=False)
+        await self.safe_send(interaction, embed=embed)
+    except Exception as e:
+        await robust_log(self.bot, f"[ERROR] /onboarding_status failed", e)
+        await self.safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
+
+
+# -----------------------
+# /test Command
+# -----------------------
+@app_commands.command(name="test", description="Test if the bot is working")
+async def test(self, interaction: discord.Interaction):
+    try:
+        await self.safe_send(interaction, "✅ Test successful! Bot is responsive.")
+    except Exception as e:
+        await robust_log(self.bot, f"[ERROR] /test command failed", e)
 
 async def setup(bot):
     await bot.add_cog(CommandsCog(bot))

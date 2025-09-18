@@ -4,8 +4,8 @@ import datetime
 import ephem
 from zoneinfo import ZoneInfo
 import random
-import sqlite3
-from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, DB_FILE
+
+from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, get_all_subscribed_users
 from utils.logger import robust_log  # centralized logger import
 
 # -----------------------
@@ -105,7 +105,8 @@ class ReminderButtons(discord.ui.View):
     @discord.ui.button(label="Random Quote", style=discord.ButtonStyle.success)
     async def random_quote(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            quote = random.choice(get_all_quotes())
+            quote_list = await get_all_quotes()  # async call
+            quote = random.choice(quote_list)
             await interaction.response.send_message(f"💫 {quote}", ephemeral=True)
         except Exception as e:
             await robust_log(interaction.client, f"[ERROR] Failed Random Quote button", e)
@@ -121,26 +122,46 @@ class RemindersCog(commands.Cog):
 
     async def send_daily_reminder(self, user_id, prefs):
         try:
-            user = self.bot.get_user(user_id)
-            if not user or not prefs["subscribed"]:
+            if not prefs["subscribed"]:
                 return
+            user = self.bot.get_user(user_id)
+            if not user:
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                except Exception as e:
+                    await robust_log(self.bot, f"Failed to fetch user {user_id}", e)
+                    return
+
             region_data = REGIONS.get(prefs["region"])
             if not region_data:
                 return
+
             tz = ZoneInfo(region_data["tz"])
             now = datetime.datetime.now(tz)
+
             if now.strftime("%a") not in prefs["days"]:
                 return
             if now.hour != prefs["hour"]:
                 return
 
+            quote_list = await get_all_quotes()
+            prompt_list = await get_all_journal_prompts()
+
             embed = discord.Embed(
                 title=f"{region_data['emoji']} Daily Reminder",
-                description=f"Good morning, {user.name}! 🌞\nToday is **{format_date(now.date())}**\nRegion: **{region_data['name']}** | Timezone: **{tz}**\n\n💫 Quote: {random.choice(get_all_quotes())}\n📝 Journal Prompt: {random.choice(get_all_journal_prompts())}",
+                description=(
+                    f"Good morning, {user.name}! 🌞\n"
+                    f"Today is **{format_date(now.date())}**\n"
+                    f"Region: **{region_data['name']}** | Timezone: **{tz}**\n\n"
+                    f"💫 Quote: {random.choice(quote_list)}\n"
+                    f"📝 Journal Prompt: {random.choice(prompt_list)}"
+                ),
                 color=region_data["color"]
             )
+
             await user.send(embed=embed, view=ReminderButtons(region_data))
             await robust_log(self.bot, f"Sent daily reminder to {user.id}")
+
         except discord.Forbidden:
             await robust_log(self.bot, f"Cannot DM user {user_id}")
         except Exception as e:
@@ -149,15 +170,17 @@ class RemindersCog(commands.Cog):
     @tasks.loop(minutes=1)
     async def daily_loop(self):
         try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE subscribed = 1")
-            rows = cursor.fetchall()
-            conn.close()
-
-            for row in rows:
+            # Fetch subscribed users asynchronously
+            users = await get_all_subscribed_users()
+            for row in users:
                 user_id, region, zodiac, hour, days, subscribed = row
-                prefs = {"region": region, "zodiac": zodiac, "hour": hour, "days": days.split(","), "subscribed": bool(subscribed)}
+                prefs = {
+                    "region": region,
+                    "zodiac": zodiac,
+                    "hour": hour,
+                    "days": days.split(","),
+                    "subscribed": bool(subscribed)
+                }
                 await self.send_daily_reminder(user_id, prefs)
         except Exception as e:
             await robust_log(self.bot, f"[ERROR] Failed running daily loop", e)
@@ -165,6 +188,7 @@ class RemindersCog(commands.Cog):
     @daily_loop.before_loop
     async def before_daily_loop(self):
         await self.bot.wait_until_ready()
+        await robust_log(self.bot, "🌙 Daily reminder loop is ready to start.")
 
 # -----------------------
 # Setup

@@ -1,6 +1,7 @@
 import sqlite3
 from typing import List, Optional, Tuple
 import traceback
+import asyncio
 
 from utils.logger import robust_log
 
@@ -24,9 +25,9 @@ DEFAULT_PROMPTS = [
 # -----------------------
 # Initialization
 # -----------------------
-def init_db(bot=None) -> None:
+async def init_db(bot=None) -> None:
     """
-    Initialize all database tables safely. Logs errors to Discord if bot is provided.
+    Async DB initialization. Creates tables and pre-populates quotes and prompts.
     """
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -62,32 +63,34 @@ def init_db(bot=None) -> None:
 
         conn.commit()
 
-        # Pre-populate quotes and prompts if empty
+        # Pre-populate quotes
         cursor.execute("SELECT COUNT(*) FROM quotes")
         if cursor.fetchone()[0] == 0:
             cursor.executemany("INSERT INTO quotes (quote) VALUES (?)", [(q,) for q in DEFAULT_QUOTES])
             conn.commit()
 
+        # Pre-populate prompts
         cursor.execute("SELECT COUNT(*) FROM journal_prompts")
         if cursor.fetchone()[0] == 0:
             cursor.executemany("INSERT INTO journal_prompts (prompt) VALUES (?)", [(p,) for p in DEFAULT_PROMPTS])
             conn.commit()
 
         if bot:
-            robust_log(bot, "✅ Database initialized successfully.")
+            await robust_log(bot, "✅ Database initialized successfully.")
 
     except Exception as e:
         if bot:
-            robust_log(bot, f"❌ Failed to initialize DB: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to initialize DB: {e}", exc=traceback.format_exc())
         else:
             print(f"DB init error: {e}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
+
 # -----------------------
 # User Preferences
 # -----------------------
-def save_user_preferences(
+async def save_user_preferences(
     user_id: int,
     region: Optional[str] = None,
     zodiac: Optional[str] = None,
@@ -123,15 +126,17 @@ def save_user_preferences(
         VALUES (?, ?, ?, ?, ?, ?)
         """, (user_id, new_region, new_zodiac, new_hour, new_days, new_subscribed))
         conn.commit()
+
     except Exception as e:
         if bot:
-            robust_log(bot, f"❌ Failed to save user preferences for {user_id}: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to save user preferences for {user_id}: {e}", exc=traceback.format_exc())
         else:
             print(f"Save user prefs error: {e}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
-def get_user_preferences(user_id: int) -> Optional[dict]:
+
+async def get_user_preferences(user_id: int) -> Optional[dict]:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -155,13 +160,15 @@ def get_user_preferences(user_id: int) -> Optional[dict]:
         conn.close()
     return None
 
-def set_subscription(user_id: int, status: bool, bot=None) -> None:
-    save_user_preferences(user_id, subscribed=status, bot=bot)
+
+async def set_subscription(user_id: int, status: bool, bot=None) -> None:
+    await save_user_preferences(user_id, subscribed=status, bot=bot)
+
 
 # -----------------------
 # Quotes
 # -----------------------
-def add_quote(quote: str, bot=None) -> None:
+async def add_quote(quote: str, bot=None) -> None:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -169,13 +176,14 @@ def add_quote(quote: str, bot=None) -> None:
         conn.commit()
     except Exception as e:
         if bot:
-            robust_log(bot, f"❌ Failed to add quote: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to add quote: {e}", exc=traceback.format_exc())
         else:
             print(f"Add quote error: {e}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
-def get_all_quotes() -> List[str]:
+
+async def get_all_quotes() -> List[str]:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT quote FROM quotes")
@@ -183,10 +191,11 @@ def get_all_quotes() -> List[str]:
     conn.close()
     return DEFAULT_QUOTES + rows
 
+
 # -----------------------
 # Journal Prompts
 # -----------------------
-def add_journal_prompt(prompt: str, bot=None) -> None:
+async def add_journal_prompt(prompt: str, bot=None) -> None:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -194,13 +203,14 @@ def add_journal_prompt(prompt: str, bot=None) -> None:
         conn.commit()
     except Exception as e:
         if bot:
-            robust_log(bot, f"❌ Failed to add journal prompt: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to add journal prompt: {e}", exc=traceback.format_exc())
         else:
             print(f"Add journal prompt error: {e}\n{traceback.format_exc()}")
     finally:
         conn.close()
 
-def get_all_journal_prompts() -> List[str]:
+
+async def get_all_journal_prompts() -> List[str]:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT prompt FROM journal_prompts")
@@ -208,10 +218,11 @@ def get_all_journal_prompts() -> List[str]:
     conn.close()
     return DEFAULT_PROMPTS + rows
 
+
 # -----------------------
 # Subscribed Users
 # -----------------------
-def get_all_subscribed_users() -> List[Tuple]:
+async def get_all_subscribed_users() -> List[Tuple]:
     """
     Return list of rows for subscribed users:
     (user_id, region, zodiac, reminder_hour, reminder_days, subscribed)
