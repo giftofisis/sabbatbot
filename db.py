@@ -84,6 +84,9 @@ def save_user_preferences(
     """, (user_id, new_region, new_zodiac, new_hour, new_days, new_subscribed))
     conn.commit()
     conn.close()
+    
+# **Fix:** Add alias for backward compatibility
+    set_user_preferences = save_user_preferences
 
 def get_user_preferences(user_id: int):
     conn = sqlite3.connect(DB_FILE)
@@ -156,5 +159,3 @@ def get_all_subscribed_users() -> List[Tuple]:
     conn.close()
     return rows
 
-# **Fix:** Add alias for backward compatibility
-set_user_preferences = save_user_preferences
