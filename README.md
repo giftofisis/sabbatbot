@@ -110,8 +110,8 @@ All errors and warnings are logged to the channel ID specified by ```LOG_CHANNEL
 
 ## Contributing
 
-Fork the repository
-Create a feature branch (git checkout -b feature-name)
-Commit your changes (git commit -am 'Add new feature')
-Push to the branch (git push origin feature-name)
-Open a Pull Request
+	- Fork the repository
+	- Create a feature branch (```git checkout -b feature-name```)
+	- Commit your changes (```git commit -am 'Add new feature'```)
+	- Push to the branch (```git push origin feature-name```)
+	- Open a Pull Request
