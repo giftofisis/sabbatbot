@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from .commands import CommandsCog  # to use safe_send
 from db import set_user_preferences, get_user_preferences
 from .reminders import REGIONS
 
@@ -11,13 +10,17 @@ ZODIAC_SIGNS = {
     "Sagittarius": "♐️", "Capricorn": "♑️", "Aquarius": "♒️", "Pisces": "♓️"
 }
 
+LOG_CHANNEL_ID = 1418171996583366727  # central log channel
 
-async def log_error(bot, message):
+
+async def log_error(bot, message: str):
     """Centralized logging to a channel."""
-    channel = bot.get_channel(1418171996583366727)
-    if channel:
-        await channel.send(message)
-    print(message)
+    try:
+        channel = bot.get_channel(LOG_CHANNEL_ID)
+        if channel:
+            await channel.send(message)
+    finally:
+        print(message)
 
 
 class OnboardingCog(commands.Cog):
@@ -25,48 +28,47 @@ class OnboardingCog(commands.Cog):
         self.bot = bot
 
     async def safe_send(self, user_or_interaction, content=None, embed=None, view=None, ephemeral=True):
-        """Use CommandsCog safe_send if possible."""
-        cog = self.bot.get_cog("CommandsCog")
-        if cog:
-            await cog.safe_send(user_or_interaction, content, embed, view, ephemeral)
-        else:
-            try:
+        """Safely send a message to a user or interaction, logging failures."""
+        try:
+            cog = self.bot.get_cog("CommandsCog")
+            if cog:
+                await cog.safe_send(user_or_interaction, content, embed, view, ephemeral)
+            else:
+                # fallback
                 if isinstance(user_or_interaction, (discord.User, discord.Member)):
                     await user_or_interaction.send(content=content, embed=embed, view=view)
+                elif hasattr(user_or_interaction, "response") and not user_or_interaction.response.is_done():
+                    await user_or_interaction.response.send_message(
+                        content=content, embed=embed, view=view, ephemeral=ephemeral
+                    )
                 else:
-                    if not user_or_interaction.response.is_done():
-                        await user_or_interaction.response.send_message(
-                            content=content, embed=embed, view=view, ephemeral=ephemeral
-                        )
-                    else:
-                        await user_or_interaction.followup.send(
-                            content=content, embed=embed, view=view, ephemeral=ephemeral
-                        )
-            except Exception as e:
-                await log_error(self.bot, f"[ERROR] safe_send fallback failed: {e}")
+                    await user_or_interaction.followup.send(
+                        content=content, embed=embed, view=view, ephemeral=ephemeral
+                    )
+        except Exception as e:
+            await log_error(self.bot, f"[ERROR] safe_send failed: {e}")
 
     @app_commands.command(name="onboard", description="Start the onboarding process")
     async def onboard(self, interaction: discord.Interaction):
         user = interaction.user
 
         # -----------------------
-        # Step 1: Welcome & Region
+        # Step 1: Region Selection
         # -----------------------
         try:
             embed = discord.Embed(
                 title="✨ Welcome to the Circle! ✨",
                 description=(
                     f"Greetings, seeker! 🌙\n\n"
-                    f"Please select your region below so you can access region-specific channels and receive updates tailored for you.\n\n"
-                    f"You can manage daily DM reminders via the buttons later."
+                    f"Please select your region to access region-specific channels and updates."
                 ),
                 color=0x9b59b6
             )
 
-            class RegionSelect(discord.ui.View):
+            class RegionView(discord.ui.View):
                 def __init__(self):
                     super().__init__(timeout=None)
-
+                    self.selection = None
                     for region_name, data in REGIONS.items():
                         self.add_item(discord.ui.Button(
                             label=f"{data['emoji']} {region_name}",
@@ -74,33 +76,35 @@ class OnboardingCog(commands.Cog):
                             custom_id=f"region_{region_name}"
                         ))
 
+                async def interaction_check(self, i: discord.Interaction) -> bool:
+                    return i.user.id == user.id
+
                 @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="region_cancel")
-                async def cancel(self, button: discord.ui.Button, interaction_: discord.Interaction):
-                    await self.safe_send(interaction_, "❌ Onboarding cancelled.")
+                async def cancel(self, button: discord.ui.Button, i: discord.Interaction):
+                    self.selection = None
+                    await i.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
                     self.stop()
 
-                async def interaction_check(self, interaction_: discord.Interaction) -> bool:
-                    return interaction_.user.id == user.id
+                async def on_button_click(self, i: discord.Interaction):
+                    if i.custom_id.startswith("region_"):
+                        self.selection = i.custom_id.replace("region_", "")
+                        await i.response.send_message(f"✅ Region selected: {self.selection}", ephemeral=True)
+                        self.stop()
 
-            view = RegionSelect()
+            view = RegionView()
             await self.safe_send(user, embed=embed, view=view)
 
-            # Wait for region selection
-            region_selected = await view.wait()
-            if not view.children or not view.children[0].custom_id.startswith("region_"):
-                return
+            # Wait until a button sets view.selection
+            while view.selection is None:
+                await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=0.5))
 
-            selected_region = None
-            for child in view.children:
-                if hasattr(child, 'value') and child.value:
-                    selected_region = child.value
+            selected_region = view.selection
             if not selected_region:
-                # fallback: just pick first for demo
-                selected_region = list(REGIONS.keys())[0]
+                return
 
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Onboarding step 1 failed: {e}")
-            await self.safe_send(user, "⚠️ Onboarding failed at step 1. Try again later.")
+            await self.safe_send(user, "⚠️ Onboarding failed at step 1.")
             return
 
         # -----------------------
@@ -109,13 +113,14 @@ class OnboardingCog(commands.Cog):
         try:
             embed = discord.Embed(
                 title="🌟 Choose your Zodiac",
-                description="Please select your zodiac sign below:",
+                description="Select your zodiac sign below:",
                 color=0xf1c40f
             )
 
-            class ZodiacSelect(discord.ui.View):
+            class ZodiacView(discord.ui.View):
                 def __init__(self):
                     super().__init__(timeout=None)
+                    self.selection = None
                     for zodiac, emoji in ZODIAC_SIGNS.items():
                         self.add_item(discord.ui.Button(
                             label=f"{emoji} {zodiac}",
@@ -123,67 +128,81 @@ class OnboardingCog(commands.Cog):
                             custom_id=f"zodiac_{zodiac}"
                         ))
 
+                async def interaction_check(self, i: discord.Interaction) -> bool:
+                    return i.user.id == user.id
+
                 @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="zodiac_cancel")
-                async def cancel(self, button: discord.ui.Button, interaction_: discord.Interaction):
-                    await self.safe_send(interaction_, "❌ Onboarding cancelled.")
+                async def cancel(self, button: discord.ui.Button, i: discord.Interaction):
+                    self.selection = None
+                    await i.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
                     self.stop()
 
-                async def interaction_check(self, interaction_: discord.Interaction) -> bool:
-                    return interaction_.user.id == user.id
+                async def on_button_click(self, i: discord.Interaction):
+                    if i.custom_id.startswith("zodiac_"):
+                        self.selection = i.custom_id.replace("zodiac_", "")
+                        await i.response.send_message(f"✅ Zodiac selected: {self.selection}", ephemeral=True)
+                        self.stop()
 
-            view = ZodiacSelect()
+            view = ZodiacView()
             await self.safe_send(user, embed=embed, view=view)
 
-            zodiac_selected = await view.wait()
-            if not view.children or not view.children[0].custom_id.startswith("zodiac_"):
-                return
+            while view.selection is None:
+                await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=0.5))
 
-            selected_zodiac = None
-            for child in view.children:
-                if hasattr(child, 'value') and child.value:
-                    selected_zodiac = child.value
+            selected_zodiac = view.selection
             if not selected_zodiac:
-                selected_zodiac = list(ZODIAC_SIGNS.keys())[0]
+                return
 
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Onboarding step 2 failed: {e}")
-            await self.safe_send(user, "⚠️ Onboarding failed at step 2. Try again later.")
+            await self.safe_send(user, "⚠️ Onboarding failed at step 2.")
             return
 
         # -----------------------
-        # Step 3: Daily Notifications
+        # Step 3: Subscribe to DMs
         # -----------------------
         try:
             embed = discord.Embed(
                 title="🔔 Daily Notifications",
-                description="Would you like to subscribe to our daily DM reminders?",
+                description="Would you like to subscribe to daily reminders?",
                 color=0x2ecc71
             )
 
-            class SubscribeSelect(discord.ui.View):
+            class SubscribeView(discord.ui.View):
                 def __init__(self):
                     super().__init__(timeout=None)
+                    self.selection = None
                     self.add_item(discord.ui.Button(label="✅ Subscribe", style=discord.ButtonStyle.success, custom_id="subscribe_yes"))
                     self.add_item(discord.ui.Button(label="❌ No Thanks", style=discord.ButtonStyle.danger, custom_id="subscribe_no"))
 
+                async def interaction_check(self, i: discord.Interaction) -> bool:
+                    return i.user.id == user.id
+
                 @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, custom_id="subscribe_cancel")
-                async def cancel(self, button: discord.ui.Button, interaction_: discord.Interaction):
-                    await self.safe_send(interaction_, "❌ Onboarding cancelled.")
+                async def cancel(self, button: discord.ui.Button, i: discord.Interaction):
+                    self.selection = None
+                    await i.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
                     self.stop()
 
-                async def interaction_check(self, interaction_: discord.Interaction) -> bool:
-                    return interaction_.user.id == user.id
+                async def on_button_click(self, i: discord.Interaction):
+                    if i.custom_id == "subscribe_yes":
+                        self.selection = True
+                    elif i.custom_id == "subscribe_no":
+                        self.selection = False
+                    await i.response.send_message(f"✅ Subscribed: {self.selection}", ephemeral=True)
+                    self.stop()
 
-            view = SubscribeSelect()
+            view = SubscribeView()
             await self.safe_send(user, embed=embed, view=view)
 
-            subscribed = True  # default
-            # Here you would detect which button was clicked safely
-            # For simplicity in this template, assume subscribe is True
+            while view.selection is None:
+                await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=0.5))
+
+            subscribed = view.selection if view.selection is not None else False
 
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Onboarding step 3 failed: {e}")
-            await self.safe_send(user, "⚠️ Onboarding failed at step 3. Try again later.")
+            await self.safe_send(user, "⚠️ Onboarding failed at step 3.")
             return
 
         # -----------------------
@@ -194,7 +213,7 @@ class OnboardingCog(commands.Cog):
             await self.safe_send(user, "🎉 Thank you for completing your onboarding! Enjoy our community! 🌙")
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Saving onboarding preferences failed: {e}")
-            await self.safe_send(user, "⚠️ Could not save your onboarding preferences. Try again later.")
+            await self.safe_send(user, "⚠️ Could not save your onboarding preferences.")
 
 
 async def setup(bot):
