@@ -9,15 +9,19 @@ from db import (
     get_user_preferences, set_subscription,
     add_quote, add_journal_prompt,
     get_all_quotes, get_all_journal_prompts,
-    clear_user_preferences  # Added for clearing onboarding
+    clear_user_preferences
 )
-from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
-from utils.logger import robust_log  # centralized logger import
+from .reminders import REGIONS, ReminderButtons
+from utils.logger import robust_log
 
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    # Sync app commands when cog loads
+    async def cog_load(self):
+        await self.bot.tree.sync()
 
     # -----------------------
     # Safe send helper
@@ -66,7 +70,7 @@ class CommandsCog(commands.Cog):
             )
             await self.safe_send(interaction, embed=embed, view=ReminderButtons(region_data))
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /reminder command failed", e)
+            await robust_log(self.bot, "[ERROR] /reminder command failed", e)
             await self.safe_send(interaction, "⚠️ Could not send your reminder. Try again later.")
 
     # -----------------------
@@ -79,7 +83,7 @@ class CommandsCog(commands.Cog):
             add_quote(quote)
             await self.safe_send(interaction, "✅ Quote submitted successfully.")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /submit_quote failed", e)
+            await robust_log(self.bot, "[ERROR] /submit_quote failed", e)
             await self.safe_send(interaction, "⚠️ Could not submit quote. Try again later.")
 
     # -----------------------
@@ -92,7 +96,7 @@ class CommandsCog(commands.Cog):
             add_journal_prompt(prompt)
             await self.safe_send(interaction, "✅ Journal prompt submitted successfully.")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /submit_journal failed", e)
+            await robust_log(self.bot, "[ERROR] /submit_journal failed", e)
             await self.safe_send(interaction, "⚠️ Could not submit journal prompt. Try again later.")
 
     # -----------------------
@@ -104,7 +108,7 @@ class CommandsCog(commands.Cog):
             set_subscription(interaction.user.id, False)
             await self.safe_send(interaction, "❌ You have unsubscribed from daily reminders.")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /unsubscribe failed", e)
+            await robust_log(self.bot, "[ERROR] /unsubscribe failed", e)
             await self.safe_send(interaction, "⚠️ Could not update subscription. Try again later.")
 
     # -----------------------
@@ -126,7 +130,7 @@ class CommandsCog(commands.Cog):
             await self.safe_send(interaction.user, embed=embed)
             await self.safe_send(interaction, "✅ Help sent to your DMs.")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /help command failed", e)
+            await robust_log(self.bot, "[ERROR] /help command failed", e)
             await self.safe_send(interaction, "⚠️ Could not send help. Try again later.")
 
     # -----------------------
@@ -135,23 +139,23 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="onboarding_status", description="Check which members have completed onboarding")
     async def onboarding_status(self, interaction: discord.Interaction):
         try:
-            onboarded_users = []
-            not_onboarded_users = []
+            onboarded = []
+            not_onboarded = []
             for member in interaction.guild.members:
                 if member.bot:
                     continue
                 prefs = get_user_preferences(member.id)
                 if prefs:
-                    onboarded_users.append(member.name)
+                    onboarded.append(member.name)
                 else:
-                    not_onboarded_users.append(member.name)
+                    not_onboarded.append(member.name)
 
             embed = discord.Embed(title="📝 Onboarding Status", color=0x3498db)
-            embed.add_field(name="✅ Completed Onboarding", value="\n".join(onboarded_users) or "None", inline=False)
-            embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded_users) or "None", inline=False)
+            embed.add_field(name="✅ Completed Onboarding", value="\n".join(onboarded) or "None", inline=False)
+            embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded) or "None", inline=False)
             await self.safe_send(interaction, embed=embed)
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /onboarding_status failed", e)
+            await robust_log(self.bot, "[ERROR] /onboarding_status failed", e)
             await self.safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
 
     # -----------------------
@@ -163,7 +167,7 @@ class CommandsCog(commands.Cog):
             clear_user_preferences(interaction.user.id)
             await self.safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /clear_onboarding failed", e)
+            await robust_log(self.bot, "[ERROR] /clear_onboarding failed", e)
             await self.safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
 
     # -----------------------
@@ -174,7 +178,7 @@ class CommandsCog(commands.Cog):
         try:
             await self.safe_send(interaction, "✅ Test successful! Bot is responsive.")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /test command failed", e)
+            await robust_log(self.bot, "[ERROR] /test command failed", e)
 
 
 async def setup(bot):
