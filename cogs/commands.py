@@ -7,8 +7,8 @@ import datetime
 from zoneinfo import ZoneInfo
 
 from db import get_user_preferences, set_subscription, add_quote, add_journal_prompt, get_all_quotes, get_all_journal_prompts
-from reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
-from onboarding import log_error  # reuse the centralized logging
+from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
+from .onboarding import log_error  # reuse the centralized logging
 
 LOG_CHANNEL_ID = 1418171996583366727  # central error log channel
 
