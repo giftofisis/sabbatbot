@@ -1,10 +1,10 @@
 import os
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import asyncio
 import traceback
 
-from db import init_db  # async DB init
+from db import init_db as db_init
 from utils.logger import robust_log  # centralized logger
 
 # -----------------------
@@ -28,35 +28,32 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # ---------------------------
-        # 1️⃣ Initialize the database
-        # ---------------------------
+        # Initialize database
         try:
-            await init_db(self)  # async DB init
+            await db_init(self)
             await robust_log(self, "✅ Database initialized successfully.")
-        except Exception as e:
-            await robust_log(self, "[ERROR] Failed to initialize database", exc=traceback.format_exc())
+        except Exception:
+            tb = traceback.format_exc()
+            await robust_log(self, f"[ERROR] Failed to initialize database\n{tb}")
 
-        # ---------------------------
-        # 2️⃣ Load cogs
-        # ---------------------------
+        # Load cogs
         for cog in ["cogs.onboarding", "cogs.reminders", "cogs.commands"]:
             try:
                 await self.load_extension(cog)
                 await robust_log(self, f"✅ Loaded cog {cog}")
-            except Exception as e:
-                await robust_log(self, f"[ERROR] Failed to load cog {cog}", exc=traceback.format_exc())
+            except Exception:
+                tb = traceback.format_exc()
+                await robust_log(self, f"[ERROR] Failed to load cog {cog}\n{tb}")
 
-        # ---------------------------
-        # 3️⃣ Sync slash commands to guild
-        # ---------------------------
+        # Sync commands to guild for faster testing
         try:
             guild = discord.Object(id=GUILD_ID)
             self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
             await robust_log(self, f"✅ Slash commands synced to guild {GUILD_ID}")
-        except Exception as e:
-            await robust_log(self, "[ERROR] Failed to sync slash commands", exc=traceback.format_exc())
+        except Exception:
+            tb = traceback.format_exc()
+            await robust_log(self, f"[ERROR] Failed to sync slash commands\n{tb}")
 
     async def on_ready(self):
         await robust_log(self, f"🤖 {self.user} is online and ready!")
@@ -70,8 +67,8 @@ class MyBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         # Catch uncaught exceptions globally
-        await robust_log(self, f"[UNHANDLED COMMAND ERROR] {error}", exc=traceback.format_exc())
-
+        tb = traceback.format_exc()
+        await robust_log(self, f"[UNHANDLED COMMAND ERROR] {error}\n{tb}")
 
 # -----------------------
 # Async Main
@@ -80,7 +77,6 @@ async def main():
     bot = MyBot()
     async with bot:
         await bot.start(TOKEN)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
