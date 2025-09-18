@@ -74,21 +74,21 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
 
 ### Onboarding
 
-New members will receive a DM upon joining.
+- New members will receive a DM upon joining.
 
-Use /onboard if the DM onboarding needs to be triggered manually.
+- Use /onboard if the DM onboarding needs to be triggered manually.
 
 ### Daily Reminders
 
-Users can subscribe during onboarding.
+- Users can subscribe during onboarding.
 
-Reminders include quotes and journal prompts.
+- Reminders include quotes and journal prompts.
 
 ### Commands
 
-Interact with the bot using slash commands in Discord.
+- Interact with the bot using slash commands in Discord.
 
-Example: `/reminder`, `/submit_quote`, `/status`.
+		Example: `/reminder`, `/submit_quote`, `/status`.
 
 # Configuration
 
@@ -106,12 +106,18 @@ REGIONS = {
 
 ## Logging
 
-All errors and warnings are logged to the channel ID specified by ```LOG_CHANNEL_ID.```
+- All errors and warnings are logged to the channel ID specified by ```LOG_CHANNEL_ID.```
 
 ## Contributing
 
-	- Fork the repository
-	- Create a feature branch (```git checkout -b feature-name```)
-	- Commit your changes (```git commit -am 'Add new feature'```)
-	- Push to the branch (```git push origin feature-name```)
-	- Open a Pull Request
+- Fork the repository
+- Create a feature branch:
+  ```bash git checkout -b feature-name```
+  
+- Commit your changes:
+  ```bash git commit -am 'Add new feature'```
+
+- Push to the branch:
+ ```bashgit push origin feature-name```
+
+- Open a Pull Request
