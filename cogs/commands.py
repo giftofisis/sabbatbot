@@ -7,17 +7,15 @@ import datetime
 from zoneinfo import ZoneInfo
 
 from db import (
-    get_user_preferences,
-    set_subscription,
-    add_quote,
-    add_journal_prompt,
-    get_all_quotes,
-    get_all_journal_prompts
+    get_user_preferences, set_subscription,
+    add_quote, add_journal_prompt,
+    get_all_quotes, get_all_journal_prompts
 )
 from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
 from .onboarding import log_error  # centralized logging
 
 LOG_CHANNEL_ID = 1418171996583366727  # central error log channel
+
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -32,9 +30,15 @@ class CommandsCog(commands.Cog):
             if isinstance(user_or_interaction, (discord.User, discord.Member)):
                 await user_or_interaction.send(content=content, embed=embed, view=view)
             else:
-                await user_or_interaction.response.send_message(
-                    content=content, embed=embed, view=view, ephemeral=ephemeral
-                )
+                # interaction
+                if not user_or_interaction.response.is_done():
+                    await user_or_interaction.response.send_message(
+                        content=content, embed=embed, view=view, ephemeral=ephemeral
+                    )
+                else:
+                    await user_or_interaction.followup.send(
+                        content=content, embed=embed, view=view, ephemeral=ephemeral
+                    )
         except discord.Forbidden:
             await log_error(
                 self.bot,
@@ -225,7 +229,6 @@ class CommandsCog(commands.Cog):
         except Exception as e:
             await log_error(self.bot, f"[ERROR] /test command failed: {e}")
             await self.safe_send(interaction, "⚠️ Test command failed. Try again later.")
-
 
 # -----------------------
 # Setup
