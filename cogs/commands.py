@@ -6,26 +6,40 @@ import random
 import datetime
 from zoneinfo import ZoneInfo
 
-from db import get_user_preferences, set_subscription, add_quote, add_journal_prompt, get_all_quotes, get_all_journal_prompts
+from db import (
+    get_user_preferences,
+    set_subscription,
+    add_quote,
+    add_journal_prompt,
+    get_all_quotes,
+    get_all_journal_prompts
+)
 from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
-from .onboarding import log_error  # reuse the centralized logging
+from .onboarding import log_error  # centralized logging
 
 LOG_CHANNEL_ID = 1418171996583366727  # central error log channel
-
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # -----------------------
+    # Safe send helper
+    # -----------------------
     async def safe_send(self, user_or_interaction, content=None, embed=None, view=None, ephemeral=True):
         """Safely send a message to a user or interaction, logging failures."""
         try:
-            if isinstance(user_or_interaction, discord.User) or isinstance(user_or_interaction, discord.Member):
+            if isinstance(user_or_interaction, (discord.User, discord.Member)):
                 await user_or_interaction.send(content=content, embed=embed, view=view)
             else:
-                await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
+                await user_or_interaction.response.send_message(
+                    content=content, embed=embed, view=view, ephemeral=ephemeral
+                )
         except discord.Forbidden:
-            await log_error(self.bot, f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}")
+            await log_error(
+                self.bot,
+                f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}"
+            )
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Failed safe_send: {e}")
 
@@ -133,6 +147,44 @@ class CommandsCog(commands.Cog):
         except Exception as e:
             await log_error(self.bot, f"[ERROR] /status command failed: {e}")
             await self.safe_send(interaction, "⚠️ Could not fetch status. Try again later.")
+
+    # -----------------------
+    # /onboarding_status Command
+    # -----------------------
+    @app_commands.command(name="onboarding_status", description="Shows which members have completed onboarding")
+    async def onboarding_status(self, interaction: discord.Interaction):
+        try:
+            guild = interaction.guild
+            if not guild:
+                await self.safe_send(interaction, "⚠️ Could not access the guild.")
+                return
+
+            completed = []
+            incomplete = []
+
+            for member in guild.members:
+                prefs = get_user_preferences(member.id)
+                if prefs and prefs["region"] and prefs["zodiac"]:
+                    completed.append(member.mention)
+                else:
+                    incomplete.append(member.mention)
+
+            embed = discord.Embed(title="🌙 Onboarding Status", color=0x1abc9c)
+            embed.add_field(
+                name="✅ Completed Onboarding",
+                value="\n".join(completed) if completed else "None",
+                inline=False
+            )
+            embed.add_field(
+                name="❌ Incomplete Onboarding",
+                value="\n".join(incomplete) if incomplete else "None",
+                inline=False
+            )
+
+            await self.safe_send(interaction, embed=embed)
+        except Exception as e:
+            await log_error(self.bot, f"[ERROR] /onboarding_status failed: {e}")
+            await self.safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
 
     # -----------------------
     # /help Command
