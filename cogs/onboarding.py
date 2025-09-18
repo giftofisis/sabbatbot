@@ -4,6 +4,7 @@ from discord import app_commands
 from db import set_user_preferences
 from .reminders import REGIONS
 from datetime import datetime
+import traceback
 
 ZODIAC_SIGNS = {
     "Aries": "♈️", "Taurus": "♉️", "Gemini": "♊️", "Cancer": "♋️",
@@ -11,214 +12,185 @@ ZODIAC_SIGNS = {
     "Sagittarius": "♐️", "Capricorn": "♑️", "Aquarius": "♒️", "Pisces": "♓️"
 }
 
-LOG_CHANNEL_ID = 1418171996583366727
+LOG_CHANNEL_ID = 1418171996583366727  # change to your actual log channel ID
 
-async def log_error(bot, message: str):
-    """Log to console and to the server log channel if available."""
+
+async def robust_log(bot, message: str, error: Exception = None):
+    """Send logs to console and log channel with full details."""
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    log_message = f"[{timestamp} UTC] {message}"
-    print(log_message)
+    log_msg = f"[{timestamp} UTC] {message}"
+    if error:
+        log_msg += f"\nException: {error}\nTraceback:\n{traceback.format_exc()}"
+    print(log_msg)
     channel = bot.get_channel(LOG_CHANNEL_ID)
     if channel:
         try:
-            await channel.send(log_message)
+            await channel.send(f"```{log_msg}```")
         except Exception as e:
             print(f"[ERROR] Failed to send log to channel: {e}")
 
+
 class OnboardingCog(commands.Cog):
+    """Full onboarding with DM buttons, SQLite saving, and robust logging."""
+
     def __init__(self, bot):
         self.bot = bot
 
-    async def safe_send(self, user: discord.User, content=None, embed=None, view=None):
+    async def safe_dm(self, user: discord.User, content=None, embed=None, view=None):
+        """Send a DM safely with exception handling."""
         try:
             await user.send(content=content, embed=embed, view=view)
         except discord.Forbidden:
-            await log_error(self.bot, f"[ERROR] Cannot DM user {user.id}")
+            await robust_log(self.bot, f"Cannot DM user {user.id}")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] safe_send failed: {e}")
+            await robust_log(self.bot, f"Failed to send DM to user {user.id}", e)
 
     async def log_step(self, user_id, step, detail=None):
-        """Helper to log a user’s onboarding step."""
+        """Log user step to log channel."""
         msg = f"User {user_id} - {step}"
         if detail:
             msg += f": {detail}"
-        await log_error(self.bot, msg)
+        await robust_log(self.bot, msg)
 
     @app_commands.command(name="onboard", description="Start the onboarding process")
     async def onboard(self, interaction: discord.Interaction):
         user = interaction.user
-        await interaction.response.defer(ephemeral=True)
-        await self.log_step(user.id, "Started onboarding")
 
-        # --- Step 1: Region ---
         try:
-            embed = discord.Embed(
-                title="✨ Welcome to GBPBot! ✨",
-                description="Select your **region** below:",
-                color=0x9b59b6
-            )
+            # Defer immediately to prevent interaction failed
+            await interaction.response.defer(ephemeral=True)
+            await self.log_step(user.id, "Started onboarding")
 
-            class RegionView(discord.ui.View):
-                def __init__(self, user_id):
-                    super().__init__(timeout=None)
-                    self.selected_region = None
-                    self.user_id = user_id
-                    for region_name, data in REGIONS.items():
-                        self.add_item(discord.ui.Button(
-                            label=f"{data['emoji']} {region_name}",
-                            style=discord.ButtonStyle.primary,
-                            custom_id=f"region_{region_name}"
-                        ))
+            # --- Step 1: Region ---
+            selected_region = await self.region_step(user)
 
-                async def interaction_check(self, inter):
-                    return inter.user.id == self.user_id
+            # --- Step 2: Zodiac ---
+            selected_zodiac = await self.zodiac_step(user)
 
-                @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="region_cancel")
-                async def cancel(self, button, inter):
-                    await inter.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
-                    await log_error(self.user_id, "User cancelled onboarding at Region step")
-                    self.stop()
+            # --- Step 3: Subscription ---
+            subscribed = await self.subscribe_step(user)
 
-            def make_region_callback(region_name):
-                async def callback(button, inter):
-                    view.selected_region = region_name
-                    await inter.response.send_message(f"✅ Selected region: {region_name}", ephemeral=True)
-                    await log_error(inter.client, f"User {inter.user.id} selected region: {region_name}")
-                    view.stop()
-                return callback
-
-            view = RegionView(user.id)
-            for child in view.children:
-                if isinstance(child, discord.ui.Button) and child.custom_id.startswith("region_") and child.custom_id != "region_cancel":
-                    region_name = child.custom_id.split("_")[1]
-                    child.callback = make_region_callback(region_name)
-
-            await self.safe_send(user, embed=embed, view=view)
-            await view.wait()
-            selected_region = view.selected_region or list(REGIONS.keys())[0]
-            await self.log_step(user.id, "Completed Region step", selected_region)
+            # --- Save to SQLite ---
+            try:
+                set_user_preferences(user.id, region=selected_region, zodiac=selected_zodiac, subscribed=subscribed)
+                await self.safe_dm(user, f"🎉 Onboarding complete! Welcome, {user.name} 🌙")
+                await interaction.followup.send("✅ Onboarding complete! Check your DMs.", ephemeral=True)
+                await self.log_step(user.id, "Onboarding complete", f"Region: {selected_region}, Zodiac: {selected_zodiac}, Subscribed: {subscribed}")
+            except Exception as e:
+                await self.safe_dm(user, "⚠️ Could not save preferences.")
+                await interaction.followup.send("⚠️ Onboarding failed at final step.", ephemeral=True)
+                await robust_log(self.bot, f"Failed to save preferences for user {user.id}", e)
 
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] Step 1 failed for user {user.id}: {e}")
-            await self.safe_send(user, "⚠️ Onboarding failed at step 1.")
-            await interaction.followup.send("⚠️ Onboarding failed.", ephemeral=True)
-            return
+            # Catch any unexpected error to prevent interaction failed
+            await interaction.followup.send("⚠️ Onboarding failed unexpectedly. Please try again.", ephemeral=True)
+            await robust_log(self.bot, f"Unexpected onboarding error for user {user.id}", e)
 
-        # --- Step 2: Zodiac ---
-        try:
-            embed = discord.Embed(
-                title="🌟 Choose your Zodiac",
-                description="Select your zodiac sign:",
-                color=0xf1c40f
-            )
+    # ---------------- Step functions ---------------- #
 
-            class ZodiacView(discord.ui.View):
-                def __init__(self, user_id):
-                    super().__init__(timeout=None)
-                    self.selected_zodiac = None
-                    self.user_id = user_id
-                    for zodiac, emoji in ZODIAC_SIGNS.items():
-                        self.add_item(discord.ui.Button(
-                            label=f"{emoji} {zodiac}",
-                            style=discord.ButtonStyle.secondary,
-                            custom_id=f"zodiac_{zodiac}"
-                        ))
+    async def region_step(self, user):
+        embed = discord.Embed(title="✨ Welcome to GBPBot! ✨",
+                              description="Select your **region** below:",
+                              color=0x9b59b6)
 
-                async def interaction_check(self, inter):
-                    return inter.user.id == self.user_id
+        view = discord.ui.View(timeout=None)
+        selected = {"region": None}
 
-                @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="zodiac_cancel")
-                async def cancel(self, button, inter):
-                    await inter.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
-                    await log_error(self.bot, f"User {inter.user.id} cancelled onboarding at Zodiac step")
-                    self.stop()
+        async def make_callback(region_name):
+            async def callback(interaction: discord.Interaction):
+                selected["region"] = region_name
+                await interaction.response.send_message(f"✅ Selected region: {region_name}", ephemeral=True)
+                await robust_log(self.bot, f"User {interaction.user.id} selected region: {region_name}")
+                view.stop()
+            return callback
 
-            def make_zodiac_callback(zodiac):
-                async def callback(button, inter):
-                    view.selected_zodiac = zodiac
-                    await inter.response.send_message(f"✅ Selected zodiac: {zodiac}", ephemeral=True)
-                    await log_error(self.bot, f"User {inter.user.id} selected zodiac: {zodiac}")
-                    view.stop()
-                return callback
+        for region_name, data in REGIONS.items():
+            button = discord.ui.Button(label=f"{data['emoji']} {region_name}", style=discord.ButtonStyle.primary)
+            button.callback = await make_callback(region_name)
+            view.add_item(button)
 
-            view = ZodiacView(user.id)
-            for child in view.children:
-                if isinstance(child, discord.ui.Button) and child.custom_id.startswith("zodiac_") and child.custom_id != "zodiac_cancel":
-                    zodiac_name = child.custom_id.split("_")[1]
-                    child.callback = make_zodiac_callback(zodiac_name)
+        cancel_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        async def cancel_callback(interaction: discord.Interaction):
+            await interaction.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
+            await robust_log(self.bot, f"User {interaction.user.id} cancelled onboarding at Region step")
+            view.stop()
+        cancel_button.callback = cancel_callback
+        view.add_item(cancel_button)
 
-            await self.safe_send(user, embed=embed, view=view)
-            await view.wait()
-            selected_zodiac = view.selected_zodiac or list(ZODIAC_SIGNS.keys())[0]
-            await self.log_step(user.id, "Completed Zodiac step", selected_zodiac)
+        await self.safe_dm(user, embed=embed, view=view)
+        await view.wait()
+        return selected["region"] or list(REGIONS.keys())[0]
 
-        except Exception as e:
-            await log_error(self.bot, f"[ERROR] Step 2 failed for user {user.id}: {e}")
-            await self.safe_send(user, "⚠️ Onboarding failed at step 2.")
-            await interaction.followup.send("⚠️ Onboarding failed.", ephemeral=True)
-            return
+    async def zodiac_step(self, user):
+        embed = discord.Embed(title="🌟 Choose your Zodiac",
+                              description="Select your zodiac sign:",
+                              color=0xf1c40f)
 
-        # --- Step 3: Daily Reminders ---
-        try:
-            embed = discord.Embed(
-                title="🔔 Daily Notifications",
-                description="Subscribe to daily DM reminders?",
-                color=0x2ecc71
-            )
+        view = discord.ui.View(timeout=None)
+        selected = {"zodiac": None}
 
-            class SubscribeView(discord.ui.View):
-                def __init__(self, user_id):
-                    super().__init__(timeout=None)
-                    self.subscribed = None
-                    self.user_id = user_id
+        async def make_callback(zodiac):
+            async def callback(interaction: discord.Interaction):
+                selected["zodiac"] = zodiac
+                await interaction.response.send_message(f"✅ Selected zodiac: {zodiac}", ephemeral=True)
+                await robust_log(self.bot, f"User {interaction.user.id} selected zodiac: {zodiac}")
+                view.stop()
+            return callback
 
-                async def interaction_check(self, inter):
-                    return inter.user.id == self.user_id
+        for zodiac, emoji in ZODIAC_SIGNS.items():
+            button = discord.ui.Button(label=f"{emoji} {zodiac}", style=discord.ButtonStyle.secondary)
+            button.callback = await make_callback(zodiac)
+            view.add_item(button)
 
-                @discord.ui.button(label="✅ Subscribe", style=discord.ButtonStyle.success, custom_id="subscribe_yes")
-                async def subscribe_yes(self, button, inter):
-                    self.subscribed = True
-                    await inter.response.send_message("✅ Subscribed to daily reminders!", ephemeral=True)
-                    await log_error(self.bot, f"User {inter.user.id} subscribed to daily reminders")
-                    self.stop()
+        cancel_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        async def cancel_callback(interaction: discord.Interaction):
+            await interaction.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
+            await robust_log(self.bot, f"User {interaction.user.id} cancelled onboarding at Zodiac step")
+            view.stop()
+        cancel_button.callback = cancel_callback
+        view.add_item(cancel_button)
 
-                @discord.ui.button(label="❌ No Thanks", style=discord.ButtonStyle.danger, custom_id="subscribe_no")
-                async def subscribe_no(self, button, inter):
-                    self.subscribed = False
-                    await inter.response.send_message("❌ You opted out of daily reminders.", ephemeral=True)
-                    await log_error(self.bot, f"User {inter.user.id} opted out of daily reminders")
-                    self.stop()
+        await self.safe_dm(user, embed=embed, view=view)
+        await view.wait()
+        return selected["zodiac"] or list(ZODIAC_SIGNS.keys())[0]
 
-                @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, custom_id="subscribe_cancel")
-                async def cancel(self, button, inter):
-                    await inter.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
-                    await log_error(self.bot, f"User {inter.user.id} cancelled onboarding at Subscribe step")
-                    self.stop()
+    async def subscribe_step(self, user):
+        embed = discord.Embed(title="🔔 Daily Notifications",
+                              description="Subscribe to daily DM reminders?",
+                              color=0x2ecc71)
 
-            view = SubscribeView(user.id)
-            await self.safe_send(user, embed=embed, view=view)
-            await view.wait()
-            subscribed = view.subscribed if view.subscribed is not None else True
-            await self.log_step(user.id, "Completed Subscribe step", f"Subscribed: {subscribed}")
+        view = discord.ui.View(timeout=None)
+        selected = {"subscribed": True}
 
-        except Exception as e:
-            await log_error(self.bot, f"[ERROR] Step 3 failed for user {user.id}: {e}")
-            await self.safe_send(user, "⚠️ Onboarding failed at step 3.")
-            await interaction.followup.send("⚠️ Onboarding failed.", ephemeral=True)
-            return
+        async def subscribe_callback(interaction: discord.Interaction, subscribed: bool):
+            selected["subscribed"] = subscribed
+            msg = "✅ Subscribed to daily reminders!" if subscribed else "❌ You opted out of daily reminders."
+            await interaction.response.send_message(msg, ephemeral=True)
+            await robust_log(self.bot, f"User {interaction.user.id} subscription choice: {subscribed}")
+            view.stop()
 
-        # --- Save to SQLite DB ---
-        try:
-            set_user_preferences(user.id, region=selected_region, zodiac=selected_zodiac, subscribed=subscribed)
-            await self.safe_send(user, f"🎉 Onboarding complete! Welcome, {user.name} 🌙")
-            await interaction.followup.send("✅ Onboarding complete! Check your DMs.", ephemeral=True)
-            await self.log_step(user.id, "Onboarding complete", f"Region: {selected_region}, Zodiac: {selected_zodiac}, Subscribed: {subscribed}")
+        yes_button = discord.ui.Button(label="✅ Subscribe", style=discord.ButtonStyle.success)
+        yes_button.callback = lambda inter: subscribe_callback(inter, True)
+        no_button = discord.ui.Button(label="❌ No Thanks", style=discord.ButtonStyle.danger)
+        no_button.callback = lambda inter: subscribe_callback(inter, False)
 
-        except Exception as e:
-            await log_error(self.bot, f"[ERROR] Saving preferences failed for user {user.id}: {e}")
-            await self.safe_send(user, "⚠️ Could not save preferences.")
-            await interaction.followup.send("⚠️ Onboarding failed at final step.", ephemeral=True)
+        cancel_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
+        async def cancel_callback(interaction: discord.Interaction):
+            await interaction.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
+            await robust_log(self.bot, f"User {interaction.user.id} cancelled onboarding at Subscribe step")
+            view.stop()
+        cancel_button.callback = cancel_callback
 
+        view.add_item(yes_button)
+        view.add_item(no_button)
+        view.add_item(cancel_button)
+
+        await self.safe_dm(user, embed=embed, view=view)
+        await view.wait()
+        return selected["subscribed"]
+
+
+# ---------------- Setup ---------------- #
 
 async def setup(bot):
     await bot.add_cog(OnboardingCog(bot))
