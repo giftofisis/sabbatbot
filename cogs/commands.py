@@ -27,11 +27,10 @@ class CommandsCog(commands.Cog):
         try:
             if isinstance(user_or_interaction, (discord.User, discord.Member)):
                 await user_or_interaction.send(content=content, embed=embed, view=view)
+            elif hasattr(user_or_interaction, "response") and not user_or_interaction.response.is_done():
+                await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
             else:
-                if hasattr(user_or_interaction.response, "is_done") and not user_or_interaction.response.is_done():
-                    await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
-                else:
-                    await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
+                await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
         except discord.Forbidden:
             await log_error(self.bot, f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}")
         except Exception as e:
