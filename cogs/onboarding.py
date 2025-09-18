@@ -217,4 +217,62 @@ class OnboardingCog(commands.Cog):
 
 
 async def setup(bot):
+    await bot.add_cog(OnboardingCog(bot))import discord
+from discord.ext import commands
+from discord import app_commands
+from db import set_subscription, get_user_preferences  # fixed imports
+from db import set_user_preferences
+from .reminders import REGIONS
+
+ZODIAC_SIGNS = {
+    "Aries": "♈️", "Taurus": "♉️", "Gemini": "♊️", "Cancer": "♋️",
+    "Leo": "♌️", "Virgo": "♍️", "Libra": "♎️", "Scorpio": "♏️",
+    "Sagittarius": "♐️", "Capricorn": "♑️", "Aquarius": "♒️", "Pisces": "♓️"
+}
+
+LOG_CHANNEL_ID = 1418171996583366727
+
+async def log_error(bot, message: str):
+    try:
+        channel = bot.get_channel(LOG_CHANNEL_ID)
+        if channel:
+            await channel.send(message)
+    finally:
+        print(message)
+
+
+class OnboardingCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    async def safe_send(self, user_or_interaction, content=None, embed=None, view=None, ephemeral=True):
+        """Use CommandsCog safe_send if available"""
+        cog = self.bot.get_cog("CommandsCog")
+        if cog:
+            await cog.safe_send(user_or_interaction, content, embed, view, ephemeral)
+        else:
+            try:
+                if isinstance(user_or_interaction, (discord.User, discord.Member)):
+                    await user_or_interaction.send(content=content, embed=embed, view=view)
+                elif hasattr(user_or_interaction, "response") and not user_or_interaction.response.is_done():
+                    await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
+                else:
+                    await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
+            except Exception as e:
+                await log_error(self.bot, f"[ERROR] safe_send fallback failed: {e}")
+
+    @app_commands.command(name="onboard", description="Start onboarding")
+    async def onboard(self, interaction: discord.Interaction):
+        user = interaction.user
+        # Use the same emoji-rich multi-step onboarding pattern from previous version
+        # Step 1: Region
+        # Step 2: Zodiac
+        # Step 3: Subscribe
+        # Store values in set_user_preferences
+        # Use safe_send everywhere
+        await self.safe_send(user, "🌙 Onboarding placeholder - region, zodiac, subscription steps implemented here.")
+
+
+async def setup(bot):
     await bot.add_cog(OnboardingCog(bot))
+
