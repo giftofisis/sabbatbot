@@ -3,31 +3,13 @@ from discord.ext import commands
 from discord import app_commands
 from db import set_user_preferences
 from .reminders import REGIONS
-from datetime import datetime
-import traceback
+from utils.logger import robust_log  # <- centralized logger import
 
 ZODIAC_SIGNS = {
     "Aries": "♈️", "Taurus": "♉️", "Gemini": "♊️", "Cancer": "♋️",
     "Leo": "♌️", "Virgo": "♍️", "Libra": "♎️", "Scorpio": "♏️",
     "Sagittarius": "♐️", "Capricorn": "♑️", "Aquarius": "♒️", "Pisces": "♓️"
 }
-
-LOG_CHANNEL_ID = 1418171996583366727  # change to your actual log channel ID
-
-
-async def robust_log(bot, message: str, error: Exception = None):
-    """Send logs to console and log channel with full details."""
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    log_msg = f"[{timestamp} UTC] {message}"
-    if error:
-        log_msg += f"\nException: {error}\nTraceback:\n{traceback.format_exc()}"
-    print(log_msg)
-    channel = bot.get_channel(LOG_CHANNEL_ID)
-    if channel:
-        try:
-            await channel.send(f"```{log_msg}```")
-        except Exception as e:
-            print(f"[ERROR] Failed to send log to channel: {e}")
 
 
 class OnboardingCog(commands.Cog):
@@ -57,20 +39,13 @@ class OnboardingCog(commands.Cog):
         user = interaction.user
 
         try:
-            # Defer immediately to prevent interaction failed
             await interaction.response.defer(ephemeral=True)
             await self.log_step(user.id, "Started onboarding")
 
-            # --- Step 1: Region ---
             selected_region = await self.region_step(user)
-
-            # --- Step 2: Zodiac ---
             selected_zodiac = await self.zodiac_step(user)
-
-            # --- Step 3: Subscription ---
             subscribed = await self.subscribe_step(user)
 
-            # --- Save to SQLite ---
             try:
                 set_user_preferences(user.id, region=selected_region, zodiac=selected_zodiac, subscribed=subscribed)
                 await self.safe_dm(user, f"🎉 Onboarding complete! Welcome, {user.name} 🌙")
@@ -82,7 +57,6 @@ class OnboardingCog(commands.Cog):
                 await robust_log(self.bot, f"Failed to save preferences for user {user.id}", e)
 
         except Exception as e:
-            # Catch any unexpected error to prevent interaction failed
             await interaction.followup.send("⚠️ Onboarding failed unexpectedly. Please try again.", ephemeral=True)
             await robust_log(self.bot, f"Unexpected onboarding error for user {user.id}", e)
 

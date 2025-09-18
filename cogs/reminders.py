@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import random
 import sqlite3
 from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, DB_FILE
+from utils.logger import robust_log  # centralized logger import
 
 # -----------------------
 # Config
@@ -28,20 +29,6 @@ SABBATS = {
     "Samhain": (10, 31),
     "Yule": (12, 21),
 }
-
-# -----------------------
-# Logging
-# -----------------------
-async def log_error(bot, message: str):
-    print(message)  # Railway or console logs
-    try:
-        guild = bot.get_guild(os.getenv("GUILD_ID") and int(os.getenv("GUILD_ID")))
-        if guild:
-            channel = guild.get_channel(1418171996583366727)
-            if channel:
-                await channel.send(f"⚠️ {message}")
-    except Exception as e:
-        print(f"[LOGGING ERROR] Failed to send log to channel: {e}")
 
 # -----------------------
 # Helpers
@@ -92,11 +79,11 @@ class ReminderButtons(discord.ui.View):
                 upcoming = list(sabbats.items())
             name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
             await interaction.response.send_message(
-                f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}",
+                f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}**",
                 ephemeral=True
             )
         except Exception as e:
-            await log_error(interaction.client, f"[ERROR] Failed Next Sabbat button: {e}")
+            await robust_log(interaction.client, f"[ERROR] Failed Next Sabbat button", e)
             await interaction.response.send_message("⚠️ Could not fetch next Sabbat.", ephemeral=True)
 
     @discord.ui.button(label="Next Full Moon", style=discord.ButtonStyle.secondary)
@@ -108,11 +95,11 @@ class ReminderButtons(discord.ui.View):
             fm = next_full_moon_for_tz(tz)
             phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
             await interaction.response.send_message(
-                f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}",
+                f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}**",
                 ephemeral=True
             )
         except Exception as e:
-            await log_error(interaction.client, f"[ERROR] Failed Next Full Moon button: {e}")
+            await robust_log(interaction.client, f"[ERROR] Failed Next Full Moon button", e)
             await interaction.response.send_message("⚠️ Could not fetch next full moon.", ephemeral=True)
 
     @discord.ui.button(label="Random Quote", style=discord.ButtonStyle.success)
@@ -121,7 +108,7 @@ class ReminderButtons(discord.ui.View):
             quote = random.choice(get_all_quotes())
             await interaction.response.send_message(f"💫 {quote}", ephemeral=True)
         except Exception as e:
-            await log_error(interaction.client, f"[ERROR] Failed Random Quote button: {e}")
+            await robust_log(interaction.client, f"[ERROR] Failed Random Quote button", e)
             await interaction.response.send_message("⚠️ Could not fetch quote.", ephemeral=True)
 
 # -----------------------
@@ -153,11 +140,11 @@ class RemindersCog(commands.Cog):
                 color=region_data["color"]
             )
             await user.send(embed=embed, view=ReminderButtons(region_data))
-            print(f"✅ Sent reminder to {user.name}")
+            await robust_log(self.bot, f"Sent daily reminder to {user.id}")
         except discord.Forbidden:
-            print(f"⚠️ Cannot DM {user_id}")
+            await robust_log(self.bot, f"Cannot DM user {user_id}")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] Sending daily reminder to {user_id}: {e}")
+            await robust_log(self.bot, f"[ERROR] Sending daily reminder to {user_id}", e)
 
     @tasks.loop(minutes=1)
     async def daily_loop(self):
@@ -173,7 +160,7 @@ class RemindersCog(commands.Cog):
                 prefs = {"region": region, "zodiac": zodiac, "hour": hour, "days": days.split(","), "subscribed": bool(subscribed)}
                 await self.send_daily_reminder(user_id, prefs)
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] Failed running daily loop: {e}")
+            await robust_log(self.bot, f"[ERROR] Failed running daily loop", e)
 
     @daily_loop.before_loop
     async def before_daily_loop(self):

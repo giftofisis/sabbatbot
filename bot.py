@@ -2,7 +2,9 @@ import os
 import discord
 from discord.ext import commands
 import asyncio
-import sqlite3
+
+from db import init_db as db_init
+from utils.logger import robust_log  # centralized logger
 
 # -----------------------
 # Environment Variables
@@ -17,41 +19,6 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-DB_FILE = "bot_data.db"
-
-# -----------------------
-# SQLite Initialization
-# -----------------------
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        region TEXT,
-        zodiac TEXT,
-        reminder_hour INTEGER DEFAULT 9,
-        reminder_days TEXT DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
-        subscribed INTEGER DEFAULT 1
-    )
-    """)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS quotes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        quote TEXT
-    )
-    """)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS journal_prompts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        prompt TEXT
-    )
-    """)
-    conn.commit()
-    conn.close()
-    print("✅ Database initialized.")
-
-
 # -----------------------
 # Custom Bot Class
 # -----------------------
@@ -60,36 +27,48 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
+        # Initialize database
+        try:
+            db_init(self)
+            await robust_log(self, "✅ Database initialized successfully.")
+        except Exception as e:
+            await robust_log(self, "[ERROR] Failed to initialize database", e)
+
         # Load cogs
         for cog in ["cogs.onboarding", "cogs.reminders", "cogs.commands"]:
             try:
                 await self.load_extension(cog)
-                print(f"✅ Loaded {cog}")
+                await robust_log(self, f"✅ Loaded cog {cog}")
             except Exception as e:
-                print(f"❌ Failed to load {cog}: {e}")
+                await robust_log(self, f"[ERROR] Failed to load cog {cog}", e)
 
-        # Sync commands to guild (faster than global sync)
-        guild = discord.Object(id=GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
-        print(f"✅ Slash commands synced to guild {GUILD_ID}")
+        # Sync commands to guild for faster testing
+        try:
+            guild = discord.Object(id=GUILD_ID)
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            await robust_log(self, f"✅ Slash commands synced to guild {GUILD_ID}")
+        except Exception as e:
+            await robust_log(self, "[ERROR] Failed to sync slash commands", e)
 
     async def on_ready(self):
-        print(f"🤖 {self.user} is online and ready!")
+        await robust_log(self, f"🤖 {self.user} is online and ready!")
 
         # Start reminder loops if RemindersCog is loaded
         cog = self.get_cog("RemindersCog")
         if cog and hasattr(cog, "daily_loop"):
             if not cog.daily_loop.is_running():
                 cog.daily_loop.start()
-                print("🌙 Daily reminder loop started.")
+                await robust_log(self, "🌙 Daily reminder loop started.")
 
+    async def on_command_error(self, ctx, error):
+        # Catch uncaught exceptions globally
+        await robust_log(self, f"[UNHANDLED COMMAND ERROR] {error}")
 
 # -----------------------
 # Async Main
 # -----------------------
 async def main():
-    init_db()
     bot = MyBot()
     async with bot:
         await bot.start(TOKEN)

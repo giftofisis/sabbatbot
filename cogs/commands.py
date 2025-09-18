@@ -11,9 +11,7 @@ from db import (
     get_all_quotes, get_all_journal_prompts
 )
 from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
-from .onboarding import log_error  # centralized logging
-
-LOG_CHANNEL_ID = 1418171996583366727
+from utils.logger import robust_log  # centralized logger import
 
 
 class CommandsCog(commands.Cog):
@@ -32,9 +30,9 @@ class CommandsCog(commands.Cog):
             else:
                 await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
         except discord.Forbidden:
-            await log_error(self.bot, f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}")
+            await robust_log(self.bot, f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] Failed safe_send: {e}")
+            await robust_log(self.bot, f"[ERROR] Failed safe_send", e)
 
     # -----------------------
     # /reminder Command
@@ -67,7 +65,7 @@ class CommandsCog(commands.Cog):
             )
             await self.safe_send(interaction, embed=embed, view=ReminderButtons(region_data))
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] /reminder command failed: {e}")
+            await robust_log(self.bot, f"[ERROR] /reminder command failed", e)
             await self.safe_send(interaction, "⚠️ Could not send your reminder. Try again later.")
 
     # -----------------------
@@ -80,7 +78,7 @@ class CommandsCog(commands.Cog):
             add_quote(quote)
             await self.safe_send(interaction, "✅ Quote submitted successfully.")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] /submit_quote failed: {e}")
+            await robust_log(self.bot, f"[ERROR] /submit_quote failed", e)
             await self.safe_send(interaction, "⚠️ Could not submit quote. Try again later.")
 
     # -----------------------
@@ -93,7 +91,7 @@ class CommandsCog(commands.Cog):
             add_journal_prompt(prompt)
             await self.safe_send(interaction, "✅ Journal prompt submitted successfully.")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] /submit_journal failed: {e}")
+            await robust_log(self.bot, f"[ERROR] /submit_journal failed", e)
             await self.safe_send(interaction, "⚠️ Could not submit journal prompt. Try again later.")
 
     # -----------------------
@@ -105,7 +103,7 @@ class CommandsCog(commands.Cog):
             set_subscription(interaction.user.id, False)
             await self.safe_send(interaction, "❌ You have unsubscribed from daily reminders.")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] /unsubscribe failed: {e}")
+            await robust_log(self.bot, f"[ERROR] /unsubscribe failed", e)
             await self.safe_send(interaction, "⚠️ Could not update subscription. Try again later.")
 
     # -----------------------
@@ -124,7 +122,7 @@ class CommandsCog(commands.Cog):
             await self.safe_send(interaction.user, embed=embed)
             await self.safe_send(interaction, "✅ Help sent to your DMs.")
         except Exception as e:
-            await log_error(self.bot, f"[ERROR] /help command failed: {e}")
+            await robust_log(self.bot, f"[ERROR] /help command failed", e)
             await self.safe_send(interaction, "⚠️ Could not send help. Try again later.")
 
 
