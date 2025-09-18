@@ -1,4 +1,3 @@
-import os
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -12,7 +11,7 @@ from db import (
     get_all_quotes, get_all_journal_prompts
 )
 from .reminders import REGIONS, ReminderButtons, get_sabbat_dates, next_full_moon_for_tz
-from .onboarding import log_error  # centralized logging
+from .onboarding import log_error  # ensure log_error is module-level in onboarding.py
 
 LOG_CHANNEL_ID = 1418171996583366727  # central error log channel
 
@@ -30,7 +29,7 @@ class CommandsCog(commands.Cog):
             if isinstance(user_or_interaction, (discord.User, discord.Member)):
                 await user_or_interaction.send(content=content, embed=embed, view=view)
             else:
-                # interaction
+                # Interaction handling
                 if not user_or_interaction.response.is_done():
                     await user_or_interaction.response.send_message(
                         content=content, embed=embed, view=view, ephemeral=ephemeral
@@ -54,11 +53,11 @@ class CommandsCog(commands.Cog):
     async def reminder(self, interaction: discord.Interaction):
         try:
             prefs = get_user_preferences(interaction.user.id)
-            if not prefs or not prefs["subscribed"]:
+            if not prefs or not prefs.get("subscribed"):
                 await self.safe_send(interaction, "⚠️ You are not subscribed. Use `/onboard` to set your preferences.")
                 return
 
-            region_data = REGIONS.get(prefs["region"])
+            region_data = REGIONS.get(prefs.get("region"))
             if not region_data:
                 await self.safe_send(interaction, "⚠️ Region not set. Please complete onboarding.")
                 return
@@ -168,7 +167,7 @@ class CommandsCog(commands.Cog):
 
             for member in guild.members:
                 prefs = get_user_preferences(member.id)
-                if prefs and prefs["region"] and prefs["zodiac"]:
+                if prefs and prefs.get("region") and prefs.get("zodiac"):
                     completed.append(member.mention)
                 else:
                     incomplete.append(member.mention)
@@ -229,6 +228,7 @@ class CommandsCog(commands.Cog):
         except Exception as e:
             await log_error(self.bot, f"[ERROR] /test command failed: {e}")
             await self.safe_send(interaction, "⚠️ Test command failed. Try again later.")
+
 
 # -----------------------
 # Setup
