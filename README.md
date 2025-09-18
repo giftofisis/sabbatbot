@@ -57,8 +57,10 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
 	```pip install -r requirements.txt```
 	
 4. **Environment Variables**
-	```Create a .env file with:/Use railway
-	DISCORD_BOT_TOKEN=your_bot_token
+	
+	Create a .env file with/Use railway
+	
+	```DISCORD_BOT_TOKEN=your_bot_token
 	GUILD_ID=your_server_id```
 
 	**Initialize the Database**
@@ -69,39 +71,39 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
 
 ## Usage
 
-## Onboarding
+### Onboarding
 
 New members will receive a DM upon joining.
 
 Use /onboard if the DM onboarding needs to be triggered manually.
 
-## Daily Reminders
+### Daily Reminders
 
 Users can subscribe during onboarding.
 
 Reminders include quotes and journal prompts.
 
-## Commands
+### Commands
 
 Interact with the bot using slash commands in Discord.
 
 Example: /reminder, /submit_quote, /status.
 
-## Configuration
+# Configuration
 
-Region Roles:
-python
+## Region Roles
+```python
 REGIONS = {
     "North America": {"role_id": 1416438886397251768, "emoji": "🇺🇸"},
     "South America": {"role_id": 1416438925140164809, "emoji": "🌴"},
     "Europe": {"role_id": 1416439011517534288, "emoji": "🍀"},
     "Africa": {"role_id": 1416439116043649224, "emoji": "🌍"},
     "Oceania & Asia": {"role_id": 1416439141339758773, "emoji": "🌺"},
-}
+}```
 
 ## Logging
 
-All errors and warnings are logged to the channel ID specified by LOG_CHANNEL_ID.
+All errors and warnings are logged to the channel ID specified by ```LOG_CHANNEL_ID.```
 
 ## Contributing
 
