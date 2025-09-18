@@ -8,7 +8,7 @@ from db import save_user_preferences
 # Config
 # -----------------------
 GUILD_ID = int(os.getenv("GUILD_ID"))
-LOG_CHANNEL_ID = 1418171996583366727  # central error log channel
+LOG_CHANNEL_ID = 1418171996583366727  # Central error log channel
 
 REGIONS = {
     "North America": {"role_id": 1416438886397251768, "emoji": "🇺🇸"},
@@ -24,9 +24,10 @@ ZODIACS = {
     "Sagittarius": "♐", "Capricorn": "♑", "Aquarius": "♒", "Pisces": "♓"
 }
 
-
+# -----------------------
+# Logging
+# -----------------------
 async def log_error(bot, message: str):
-    """Send error/warning logs to both console and Discord channel."""
     print(message)  # Railway logs
     try:
         guild = bot.get_guild(GUILD_ID)
@@ -38,6 +39,9 @@ async def log_error(bot, message: str):
         print(f"[LOGGING ERROR] Failed to send log to channel: {e}")
 
 
+# -----------------------
+# Onboarding Cog
+# -----------------------
 class OnboardingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -55,14 +59,18 @@ class OnboardingCog(commands.Cog):
         async def callback(self, interaction: discord.Interaction):
             guild = self.bot.get_guild(GUILD_ID)
             if not guild:
-                await interaction.response.send_message("⚠️ Could not access server. Please contact an admin.", ephemeral=True)
+                await interaction.response.send_message(
+                    "⚠️ Could not access server. Please contact an admin.", ephemeral=True
+                )
                 await log_error(self.bot, f"[ERROR] Guild not found (GUILD_ID={GUILD_ID})")
                 return
 
             region_data = REGIONS[self.region_name]
             role = guild.get_role(region_data["role_id"])
             if not role:
-                await interaction.response.send_message("⚠️ Role not found in the server. Please contact an admin.", ephemeral=True)
+                await interaction.response.send_message(
+                    "⚠️ Role not found. Please contact an admin.", ephemeral=True
+                )
                 await log_error(self.bot, f"[ERROR] Role ID {region_data['role_id']} missing in guild {guild.name}")
                 return
 
@@ -80,22 +88,28 @@ class OnboardingCog(commands.Cog):
                     f"✅ Region **{self.region_name}** assigned!", ephemeral=True
                 )
 
-                # Move to Zodiac step
+                # Proceed to Zodiac selection
                 try:
-                    await interaction.user.send("🌟 Now choose your Zodiac sign:", view=OnboardingCog.ZodiacView(self.member))
+                    await interaction.user.send(
+                        "🌟 Now choose your Zodiac sign:",
+                        view=OnboardingCog.ZodiacView(self.member)
+                    )
                 except discord.Forbidden:
-                    await interaction.followup.send("⚠️ I couldn’t DM you. Please enable DMs.", ephemeral=True)
-                    await log_error(self.bot, f"[WARN] Could not DM user {interaction.user} for zodiac step.")
-
+                    await log_error(self.bot, f"[WARN] Could not DM {interaction.user} for zodiac step.")
+                    await interaction.followup.send(
+                        "⚠️ I couldn’t DM you. Please enable DMs.", ephemeral=True
+                    )
             except Exception as e:
-                await log_error(self.bot, f"[ERROR] Failed assigning region role: {e}")
-                await interaction.response.send_message("⚠️ Something went wrong. Please try again later.", ephemeral=True)
+                await log_error(self.bot, f"[ERROR] Failed assigning region: {e}")
+                await interaction.response.send_message(
+                    "⚠️ Something went wrong. Try again later.", ephemeral=True
+                )
 
     class RegionView(discord.ui.View):
         def __init__(self, member, bot):
-            super().__init__(timeout=300)
+            super().__init__(timeout=None)
             for name, data in REGIONS.items():
-                self.add_item(OnboardingCog.RegionButton(region_name=name, emoji=data["emoji"], member=member, bot=bot))
+                self.add_item(OnboardingCog.RegionButton(name, data["emoji"], member, bot))
 
     # -------------------
     # Zodiac Selection
@@ -111,45 +125,53 @@ class OnboardingCog(commands.Cog):
                 save_user_preferences(self.member.id, zodiac=self.zodiac)
                 await interaction.response.send_message(f"✅ Zodiac **{self.zodiac}** saved!", ephemeral=True)
 
-                # Move to Subscription step
+                # Proceed to Subscription
                 try:
-                    await interaction.user.send("📅 Do you want to receive daily reminders?", view=OnboardingCog.SubscriptionView(self.member))
+                    await interaction.user.send(
+                        "📅 Do you want to receive daily reminders?",
+                        view=OnboardingCog.SubscriptionView(self.member)
+                    )
                 except discord.Forbidden:
-                    await interaction.followup.send("⚠️ I couldn’t DM you for subscription setup. Please enable DMs.", ephemeral=True)
-                    await log_error(self.member._state._get_client(), f"[WARN] Could not DM {interaction.user} for subscription step.")
-
+                    await log_error(interaction.client, f"[WARN] Could not DM {interaction.user} for subscription step.")
+                    await interaction.followup.send(
+                        "⚠️ I couldn’t DM you. Please enable DMs.", ephemeral=True
+                    )
             except Exception as e:
                 await log_error(interaction.client, f"[ERROR] Failed saving zodiac: {e}")
-                await interaction.response.send_message("⚠️ Could not save your zodiac. Try again later.", ephemeral=True)
+                await interaction.response.send_message(
+                    "⚠️ Could not save your zodiac. Try again later.", ephemeral=True
+                )
 
     class ZodiacView(discord.ui.View):
         def __init__(self, member):
-            super().__init__(timeout=300)
+            super().__init__(timeout=None)
             for name, emoji in ZODIACS.items():
-                self.add_item(OnboardingCog.ZodiacButton(zodiac=name, emoji=emoji, member=member))
+                self.add_item(OnboardingCog.ZodiacButton(name, emoji, member))
 
     # -------------------
-    # Subscription Choice
+    # Subscription
     # -------------------
     class SubscriptionButton(discord.ui.Button):
-        def __init__(self, label, subscribed, member):
-            style = discord.ButtonStyle.success if subscribed else discord.ButtonStyle.danger
+        def __init__(self, label, subscribe, member):
+            style = discord.ButtonStyle.success if subscribe else discord.ButtonStyle.danger
             super().__init__(label=label, style=style)
-            self.subscribed = subscribed
+            self.subscribe = subscribe
             self.member = member
 
         async def callback(self, interaction: discord.Interaction):
             try:
-                save_user_preferences(self.member.id, subscribed=1 if self.subscribed else 0)
-                status = "✅ You’re subscribed to reminders!" if self.subscribed else "❌ You opted out of reminders."
-                await interaction.response.send_message(status, ephemeral=True)
+                save_user_preferences(self.member.id, subscribed=1 if self.subscribe else 0)
+                status_msg = "✅ Subscribed to daily reminders!" if self.subscribe else "❌ Opted out of reminders."
+                await interaction.response.send_message(status_msg, ephemeral=True)
             except Exception as e:
                 await log_error(interaction.client, f"[ERROR] Failed saving subscription: {e}")
-                await interaction.response.send_message("⚠️ Could not save your preference. Try again later.", ephemeral=True)
+                await interaction.response.send_message(
+                    "⚠️ Could not save your preference. Try again later.", ephemeral=True
+                )
 
     class SubscriptionView(discord.ui.View):
         def __init__(self, member):
-            super().__init__(timeout=300)
+            super().__init__(timeout=None)
             self.add_item(OnboardingCog.SubscriptionButton("Subscribe", True, member))
             self.add_item(OnboardingCog.SubscriptionButton("Unsubscribe", False, member))
 
@@ -159,12 +181,16 @@ class OnboardingCog(commands.Cog):
     async def start_onboarding(self, member):
         try:
             dm = await member.create_dm()
-            await dm.send("👋 Welcome! Let’s get started. First, choose your region:", view=self.RegionView(member, self.bot))
+            await dm.send(
+                "👋 Welcome! Let’s get started. First, choose your region:",
+                view=self.RegionView(member, self.bot)
+            )
         except discord.Forbidden:
             await log_error(self.bot, f"[WARN] Could not DM {member} ({member.id}) during onboarding.")
-            channel = member.guild.system_channel
-            if channel:
-                await channel.send(f"⚠️ {member.mention}, I couldn’t DM you. Please enable DMs and run `/onboard`.")
+            if member.guild.system_channel:
+                await member.guild.system_channel.send(
+                    f"⚠️ {member.mention}, I couldn’t DM you. Please enable DMs and run `/onboard`."
+                )
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -173,7 +199,9 @@ class OnboardingCog(commands.Cog):
     @app_commands.command(name="onboard", description="Start onboarding manually")
     async def onboard(self, interaction: discord.Interaction):
         await self.start_onboarding(interaction.user)
-        await interaction.response.send_message("✅ Check your DMs for onboarding!", ephemeral=True)
+        await interaction.response.send_message(
+            "✅ Check your DMs for onboarding!", ephemeral=True
+        )
 
 
 async def setup(bot):
