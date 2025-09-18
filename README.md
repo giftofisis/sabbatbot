@@ -56,7 +56,7 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
 3. **Install dependencies**
 	```pip install -r requirements.txt```
 	
-4. **Environment Variables
+4. **Environment Variables**
 	```Create a .env file with:/Use railway
 	DISCORD_BOT_TOKEN=your_bot_token
 	GUILD_ID=your_server_id```
