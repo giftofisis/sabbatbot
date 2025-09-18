@@ -60,14 +60,15 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
 	
 	Create a .env file with/Use railway
 	
-	```DISCORD_BOT_TOKEN=your_bot_token
-	GUILD_ID=your_server_id```
+	```DISCORD_BOT_TOKEN=your_bot_token```
+				and
+	```GUILD_ID=your_server_id```
 
 	**Initialize the Database**
-	```python -c "from db import init_db; init_db()"```
+	``` python -c "from db import init_db; init_db()" ```
 	
 	**Run**
-	```python bot.py```
+	``` python bot.py ```
 
 ## Usage
 
@@ -92,14 +93,16 @@ Example: /reminder, /submit_quote, /status.
 # Configuration
 
 ## Region Roles
-```python
+```
+python
 REGIONS = {
     "North America": {"role_id": 1416438886397251768, "emoji": "🇺🇸"},
     "South America": {"role_id": 1416438925140164809, "emoji": "🌴"},
     "Europe": {"role_id": 1416439011517534288, "emoji": "🍀"},
     "Africa": {"role_id": 1416439116043649224, "emoji": "🌍"},
     "Oceania & Asia": {"role_id": 1416439141339758773, "emoji": "🌺"},
-}```
+}
+```
 
 ## Logging
 
