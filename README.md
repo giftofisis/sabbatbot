@@ -88,7 +88,7 @@ Reminders include quotes and journal prompts.
 
 Interact with the bot using slash commands in Discord.
 
-Example: /reminder, /submit_quote, /status.
+Example: `/reminder`, `/submit_quote`, `/status`.
 
 # Configuration
 
