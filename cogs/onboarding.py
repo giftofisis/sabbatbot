@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from db import set_user_preferences, get_user_preferences
+from db import set_user_preferences
 from .reminders import REGIONS
 
 ZODIAC_SIGNS = {
@@ -36,8 +36,6 @@ class OnboardingCog(commands.Cog):
     @app_commands.command(name="onboard", description="Start the onboarding process")
     async def onboard(self, interaction: discord.Interaction):
         user = interaction.user
-
-        # Defer the interaction to avoid "This interaction failed"
         await interaction.response.defer(ephemeral=True)
 
         # --- Step 1: Region ---
@@ -49,9 +47,10 @@ class OnboardingCog(commands.Cog):
             )
 
             class RegionView(discord.ui.View):
-                def __init__(self):
+                def __init__(self, user_id):
                     super().__init__(timeout=None)
                     self.selected_region = None
+                    self.user_id = user_id
                     for region_name, data in REGIONS.items():
                         self.add_item(discord.ui.Button(
                             label=f"{data['emoji']} {region_name}",
@@ -59,21 +58,34 @@ class OnboardingCog(commands.Cog):
                             custom_id=f"region_{region_name}"
                         ))
 
+                async def interaction_check(self, inter):
+                    return inter.user.id == self.user_id
+
                 @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="region_cancel")
                 async def cancel(self, button, inter):
                     await inter.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
                     self.stop()
 
-                async def interaction_check(self, inter):
-                    return inter.user.id == user.id
-
                 async def on_timeout(self):
                     self.stop()
 
-            region_view = RegionView()
-            await self.safe_send(user, embed=embed, view=region_view)
-            await region_view.wait()
-            selected_region = region_view.selected_region or list(REGIONS.keys())[0]
+            # Assign dynamic callbacks
+            def make_region_callback(region_name):
+                async def callback(button, inter):
+                    view.selected_region = region_name
+                    await inter.response.send_message(f"✅ Selected region: {region_name}", ephemeral=True)
+                    view.stop()
+                return callback
+
+            view = RegionView(user.id)
+            for child in view.children:
+                if isinstance(child, discord.ui.Button) and child.custom_id.startswith("region_") and child.custom_id != "region_cancel":
+                    region_name = child.custom_id.split("_")[1]
+                    child.callback = make_region_callback(region_name)
+
+            await self.safe_send(user, embed=embed, view=view)
+            await view.wait()
+            selected_region = view.selected_region or list(REGIONS.keys())[0]
 
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Step 1 failed: {e}")
@@ -90,9 +102,10 @@ class OnboardingCog(commands.Cog):
             )
 
             class ZodiacView(discord.ui.View):
-                def __init__(self):
+                def __init__(self, user_id):
                     super().__init__(timeout=None)
                     self.selected_zodiac = None
+                    self.user_id = user_id
                     for zodiac, emoji in ZODIAC_SIGNS.items():
                         self.add_item(discord.ui.Button(
                             label=f"{emoji} {zodiac}",
@@ -100,18 +113,34 @@ class OnboardingCog(commands.Cog):
                             custom_id=f"zodiac_{zodiac}"
                         ))
 
+                async def interaction_check(self, inter):
+                    return inter.user.id == self.user_id
+
                 @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, custom_id="zodiac_cancel")
                 async def cancel(self, button, inter):
                     await inter.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
                     self.stop()
 
-                async def interaction_check(self, inter):
-                    return inter.user.id == user.id
+                async def on_timeout(self):
+                    self.stop()
 
-            zodiac_view = ZodiacView()
-            await self.safe_send(user, embed=embed, view=zodiac_view)
-            await zodiac_view.wait()
-            selected_zodiac = zodiac_view.selected_zodiac or list(ZODIAC_SIGNS.keys())[0]
+            # Assign dynamic callbacks
+            def make_zodiac_callback(zodiac):
+                async def callback(button, inter):
+                    view.selected_zodiac = zodiac
+                    await inter.response.send_message(f"✅ Selected zodiac: {zodiac}", ephemeral=True)
+                    view.stop()
+                return callback
+
+            view = ZodiacView(user.id)
+            for child in view.children:
+                if isinstance(child, discord.ui.Button) and child.custom_id.startswith("zodiac_") and child.custom_id != "zodiac_cancel":
+                    zodiac_name = child.custom_id.split("_")[1]
+                    child.callback = make_zodiac_callback(zodiac_name)
+
+            await self.safe_send(user, embed=embed, view=view)
+            await view.wait()
+            selected_zodiac = view.selected_zodiac or list(ZODIAC_SIGNS.keys())[0]
 
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Step 2 failed: {e}")
@@ -128,24 +157,35 @@ class OnboardingCog(commands.Cog):
             )
 
             class SubscribeView(discord.ui.View):
-                def __init__(self):
+                def __init__(self, user_id):
                     super().__init__(timeout=None)
                     self.subscribed = None
-                    self.add_item(discord.ui.Button(label="✅ Subscribe", style=discord.ButtonStyle.success, custom_id="subscribe_yes"))
-                    self.add_item(discord.ui.Button(label="❌ No Thanks", style=discord.ButtonStyle.danger, custom_id="subscribe_no"))
+                    self.user_id = user_id
+
+                async def interaction_check(self, inter):
+                    return inter.user.id == self.user_id
+
+                @discord.ui.button(label="✅ Subscribe", style=discord.ButtonStyle.success, custom_id="subscribe_yes")
+                async def subscribe_yes(self, button, inter):
+                    self.subscribed = True
+                    await inter.response.send_message("✅ Subscribed to daily reminders!", ephemeral=True)
+                    self.stop()
+
+                @discord.ui.button(label="❌ No Thanks", style=discord.ButtonStyle.danger, custom_id="subscribe_no")
+                async def subscribe_no(self, button, inter):
+                    self.subscribed = False
+                    await inter.response.send_message("❌ You opted out of daily reminders.", ephemeral=True)
+                    self.stop()
 
                 @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, custom_id="subscribe_cancel")
                 async def cancel(self, button, inter):
                     await inter.response.send_message("❌ Onboarding cancelled.", ephemeral=True)
                     self.stop()
 
-                async def interaction_check(self, inter):
-                    return inter.user.id == user.id
-
-            subscribe_view = SubscribeView()
-            await self.safe_send(user, embed=embed, view=subscribe_view)
-            await subscribe_view.wait()
-            subscribed = subscribe_view.subscribed if subscribe_view.subscribed is not None else True
+            view = SubscribeView(user.id)
+            await self.safe_send(user, embed=embed, view=view)
+            await view.wait()
+            subscribed = view.subscribed if view.subscribed is not None else True
 
         except Exception as e:
             await log_error(self.bot, f"[ERROR] Step 3 failed: {e}")
@@ -153,7 +193,7 @@ class OnboardingCog(commands.Cog):
             await interaction.followup.send("⚠️ Onboarding failed.", ephemeral=True)
             return
 
-        # --- Save Preferences ---
+        # --- Save to SQLite DB ---
         try:
             set_user_preferences(user.id, region=selected_region, zodiac=selected_zodiac, subscribed=subscribed)
             await self.safe_send(user, f"🎉 Onboarding complete! Welcome, {user.name} 🌙")
