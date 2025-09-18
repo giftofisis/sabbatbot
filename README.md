@@ -48,23 +48,24 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
    cd gbpbot```
 
 2. **Clone the repository**
+	```bash 
 	python -m venv .venv
 	source .venv/bin/activate  # Linux/macOS
-	.venv\Scripts\activate     # Windows
+	.venv\Scripts\activate     # Windows```
 	
 3. **Install dependencies**
-	pip install -r requirements.txt
+	```pip install -r requirements.txt```
 	
 4. **Environment Variables
-	Create a .env file with:/Use railway
+	```Create a .env file with:/Use railway
 	DISCORD_BOT_TOKEN=your_bot_token
-	GUILD_ID=your_server_id
+	GUILD_ID=your_server_id```
 
 	**Initialize the Database**
-	python -c "from db import init_db; init_db()"
+	```python -c "from db import init_db; init_db()"```
 	
 	**Run**
-	python bot.py
+	```python bot.py```
 
 ## Usage
 
