@@ -21,7 +21,48 @@ class CommandsCog(commands.Cog):
 
     # Sync app commands when cog loads
     async def cog_load(self):
-        await self.bot.tree.sync()
+        try:
+            guild_id = getattr(self.bot, "GUILD_ID", None)
+            if guild_id is None:
+                await robust_log(self.bot, "[WARN] GUILD_ID not found on bot; syncing globally.")
+                synced = await self.bot.tree.sync()
+                await robust_log(self.bot, f"[INFO] Globally synced {len(synced)} commands: {[c.name for c in synced]}")
+                return
+
+            guild = discord.Object(id=guild_id)
+
+            # Add all commands explicitly to the guild
+            self.bot.tree.add_command(self.reminder, guild=guild)
+            self.bot.tree.add_command(self.submit_quote, guild=guild)
+            self.bot.tree.add_command(self.submit_journal, guild=guild)
+            self.bot.tree.add_command(self.unsubscribe, guild=guild)
+            self.bot.tree.add_command(self.help_command, guild=guild)
+            self.bot.tree.add_command(self.onboarding_status, guild=guild)
+            self.bot.tree.add_command(self.clear_onboarding, guild=guild)
+            self.bot.tree.add_command(self.test, guild=guild)
+
+            # Sync commands to the guild
+            synced = await self.bot.tree.sync(guild=guild)
+            await robust_log(
+                self.bot,
+                f"[INFO] Synced {len(synced)} commands to guild {guild_id}: {[c.name for c in synced]}"
+            )
+
+            # Check if some commands are missing
+            if not synced:
+                await robust_log(self.bot, f"[WARN] No commands were synced to guild {guild_id}.")
+            else:
+                expected = [
+                    "reminder", "submit_quote", "submit_journal",
+                    "unsubscribe", "help", "onboarding_status",
+                    "clear_onboarding", "test"
+                ]
+                missing = [cmd for cmd in expected if cmd not in [c.name for c in synced]]
+                if missing:
+                    await robust_log(self.bot, f"[WARN] Missing commands after sync: {missing}")
+
+        except Exception as e:
+            await robust_log(self.bot, "[ERROR] Failed to sync commands", e)
 
     # -----------------------
     # Safe send helper
