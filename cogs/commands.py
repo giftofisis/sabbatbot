@@ -32,14 +32,12 @@ class CommandsCog(commands.Cog):
             guild = discord.Object(id=guild_id)
 
             # Add all commands explicitly to the guild
-            self.bot.tree.add_command(self.reminder, guild=guild)
-            self.bot.tree.add_command(self.submit_quote, guild=guild)
-            self.bot.tree.add_command(self.submit_journal, guild=guild)
-            self.bot.tree.add_command(self.unsubscribe, guild=guild)
-            self.bot.tree.add_command(self.help_command, guild=guild)
-            self.bot.tree.add_command(self.onboarding_status, guild=guild)
-            self.bot.tree.add_command(self.clear_onboarding, guild=guild)
-            self.bot.tree.add_command(self.test, guild=guild)
+            for cmd in [
+                self.reminder, self.submit_quote, self.submit_journal,
+                self.unsubscribe, self.help_command, self.onboarding_status,
+                self.clear_onboarding, self.test
+            ]:
+                self.bot.tree.add_command(cmd, guild=guild)
 
             # Sync commands to the guild
             synced = await self.bot.tree.sync(guild=guild)
@@ -48,18 +46,15 @@ class CommandsCog(commands.Cog):
                 f"[INFO] Synced {len(synced)} commands to guild {guild_id}: {[c.name for c in synced]}"
             )
 
-            # Check if some commands are missing
-            if not synced:
-                await robust_log(self.bot, f"[WARN] No commands were synced to guild {guild_id}.")
-            else:
-                expected = [
-                    "reminder", "submit_quote", "submit_journal",
-                    "unsubscribe", "help", "onboarding_status",
-                    "clear_onboarding", "test"
-                ]
-                missing = [cmd for cmd in expected if cmd not in [c.name for c in synced]]
-                if missing:
-                    await robust_log(self.bot, f"[WARN] Missing commands after sync: {missing}")
+            # Check for missing commands
+            expected = [
+                "reminder", "submit_quote", "submit_journal",
+                "unsubscribe", "help", "onboarding_status",
+                "clear_onboarding", "test"
+            ]
+            missing = [cmd for cmd in expected if cmd not in [c.name for c in synced]]
+            if missing:
+                await robust_log(self.bot, f"[WARN] Missing commands after sync: {missing}")
 
         except Exception as e:
             await robust_log(self.bot, "[ERROR] Failed to sync commands", e)
@@ -86,7 +81,7 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="reminder", description="Get an interactive reminder")
     async def reminder(self, interaction: discord.Interaction):
         try:
-            prefs = get_user_preferences(interaction.user.id)
+            prefs = await get_user_preferences(interaction.user.id)
             if not prefs or not prefs.get("subscribed", False):
                 await self.safe_send(interaction, "⚠️ You are not subscribed. Use `/onboard` to set your preferences.")
                 return
@@ -104,8 +99,8 @@ class CommandsCog(commands.Cog):
                     f"Good morning, {interaction.user.name}! 🌞\n"
                     f"Today is **{today.strftime('%-d %B %Y')}**\n"
                     f"Region: **{region_data['name']}** | Timezone: **{tz}**\n\n"
-                    f"💫 Quote: {random.choice(get_all_quotes())}\n"
-                    f"📝 Journal Prompt: {random.choice(get_all_journal_prompts())}"
+                    f"💫 Quote: {random.choice(await get_all_quotes())}\n"
+                    f"📝 Journal Prompt: {random.choice(await get_all_journal_prompts())}"
                 ),
                 color=region_data["color"]
             )
@@ -121,7 +116,7 @@ class CommandsCog(commands.Cog):
     @app_commands.describe(quote="The quote text to submit")
     async def submit_quote(self, interaction: discord.Interaction, quote: str):
         try:
-            add_quote(quote)
+            await add_quote(quote, bot=self.bot)
             await self.safe_send(interaction, "✅ Quote submitted successfully.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /submit_quote failed", e)
@@ -134,7 +129,7 @@ class CommandsCog(commands.Cog):
     @app_commands.describe(prompt="The journal prompt text to submit")
     async def submit_journal(self, interaction: discord.Interaction, prompt: str):
         try:
-            add_journal_prompt(prompt)
+            await add_journal_prompt(prompt, bot=self.bot)
             await self.safe_send(interaction, "✅ Journal prompt submitted successfully.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /submit_journal failed", e)
@@ -146,7 +141,7 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="unsubscribe", description="Stop receiving daily reminders")
     async def unsubscribe(self, interaction: discord.Interaction):
         try:
-            set_subscription(interaction.user.id, False)
+            await set_subscription(interaction.user.id, False, bot=self.bot)
             await self.safe_send(interaction, "❌ You have unsubscribed from daily reminders.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /unsubscribe failed", e)
@@ -185,7 +180,7 @@ class CommandsCog(commands.Cog):
             for member in interaction.guild.members:
                 if member.bot:
                     continue
-                prefs = get_user_preferences(member.id)
+                prefs = await get_user_preferences(member.id)
                 if prefs:
                     onboarded.append(member.name)
                 else:
@@ -205,7 +200,7 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="clear_onboarding", description="Clear your onboarding status")
     async def clear_onboarding(self, interaction: discord.Interaction):
         try:
-            clear_user_preferences(interaction.user.id)
+            await clear_user_preferences(interaction.user.id, bot=self.bot)
             await self.safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /clear_onboarding failed", e)
