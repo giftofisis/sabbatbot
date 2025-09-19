@@ -3,6 +3,7 @@ from discord.ext import commands
 import traceback
 from db import save_user_preferences, get_user_preferences
 from utils.logger import robust_log
+from discord import app_commands
 
 REGIONS = ["North America", "South America", "Europe", "Africa", "Oceania & Asia"]
 ZODIAC_SIGNS = [
@@ -79,8 +80,11 @@ class OnboardingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # -----------------------
+    # Legacy prefix command (optional)
+    # -----------------------
     @commands.command(name="onboard")
-    async def onboard(self, ctx):
+    async def onboard_prefix(self, ctx):
         try:
             await ctx.send("📬 Check your DMs! Starting onboarding...")
             onboarding = OnboardingDM(self.bot, ctx.author)
@@ -89,8 +93,23 @@ class OnboardingCog(commands.Cog):
             await ctx.send("⚠️ I couldn't DM you. Please enable DMs from server members.")
         except Exception:
             tb = traceback.format_exc()
-            await robust_log(self.bot, f"[ERROR] /onboard command failed for user {ctx.author.id}\n{tb}")
+            await robust_log(self.bot, f"[ERROR] !onboard command failed for user {ctx.author.id}\n{tb}")
             await ctx.send("⚠️ Failed to start onboarding.")
+
+    # -----------------------
+    # Slash command /onboard
+    # -----------------------
+    @app_commands.command(name="onboard", description="Start onboarding to set your preferences")
+    async def onboard(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.send_message("📬 Check your DMs! Starting onboarding...", ephemeral=True)
+            onboarding = OnboardingDM(self.bot, interaction.user)
+            await onboarding.start()
+        except discord.Forbidden:
+            await interaction.followup.send("⚠️ I couldn't DM you. Please enable DMs from server members.", ephemeral=True)
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /onboard command failed for user {interaction.user.id}\n{e}")
+            await interaction.followup.send("⚠️ Failed to start onboarding.", ephemeral=True)
 
 
 async def setup(bot):

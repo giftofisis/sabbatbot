@@ -13,6 +13,7 @@ from db import (
 )
 from .reminders import REGIONS, ReminderButtons
 from utils.logger import robust_log
+from onboarding import OnboardingCog  # For /onboard integration
 
 
 class CommandsCog(commands.Cog):
@@ -39,6 +40,23 @@ class CommandsCog(commands.Cog):
             ]:
                 self.bot.tree.add_command(cmd, guild=guild)
 
+            # -----------------------
+            # Add /onboard command from OnboardingCog
+            # -----------------------
+            try:
+                # Ensure OnboardingCog is loaded
+                if not self.bot.get_cog("OnboardingCog"):
+                    await self.bot.load_extension("cogs.onboarding")
+                    await robust_log(self.bot, "✅ OnboardingCog loaded for /onboard command.")
+
+                # Add onboard slash command
+                onboard_cog = self.bot.get_cog("OnboardingCog")
+                if onboard_cog:
+                    self.bot.tree.add_command(onboard_cog.onboard, guild=guild)
+                    await robust_log(self.bot, "✅ /onboard command registered.")
+            except Exception as e:
+                await robust_log(self.bot, f"[ERROR] Failed to register /onboard command: {e}")
+
             # Sync commands to the guild
             synced = await self.bot.tree.sync(guild=guild)
             await robust_log(
@@ -50,7 +68,7 @@ class CommandsCog(commands.Cog):
             expected = [
                 "reminder", "submit_quote", "submit_journal",
                 "unsubscribe", "help", "onboarding_status",
-                "clear_onboarding", "test"
+                "clear_onboarding", "test", "onboard"
             ]
             missing = [cmd for cmd in expected if cmd not in [c.name for c in synced]]
             if missing:
