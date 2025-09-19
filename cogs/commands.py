@@ -13,12 +13,13 @@ from db import (
 )
 from .reminders import REGIONS, ReminderButtons
 from .onboarding import OnboardingDM
-from ..utils.logger import robust_log  # adjust path if utils is at root
+from utils.logger import robust_log  # fixed absolute import
 
 # -----------------------
 # Bot Version
 # -----------------------
-BOT_VERSION = "1.2.3.4"
+BOT_VERSION = "1.2.3.5"  # after /onboard integration, 2025-09-19
+
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
