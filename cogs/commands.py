@@ -11,8 +11,8 @@ from db import (
     get_all_quotes, get_all_journal_prompts,
     clear_user_preferences
 )
-from reminders import REGIONS, ReminderButtons
-from onboarding import OnboardingDM
+from cogs.reminders import REGIONS, ReminderButtons
+from cogs.onboarding import OnboardingDM
 from utils.logger import robust_log  # absolute import from root utils
 
 class CommandsCog(commands.Cog):
