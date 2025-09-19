@@ -11,15 +11,9 @@ from db import (
     get_all_quotes, get_all_journal_prompts,
     clear_user_preferences
 )
-from .reminders import REGIONS, ReminderButtons
-from .onboarding import OnboardingDM
-from utils.logger import robust_log  # fixed absolute import
-
-# -----------------------
-# Bot Version
-# -----------------------
-BOT_VERSION = "1.2.3.5"  # after /onboard integration, 2025-09-19
-
+from reminders import REGIONS, ReminderButtons
+from onboarding import OnboardingDM
+from utils.logger import robust_log  # absolute import from root utils
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -35,19 +29,10 @@ class CommandsCog(commands.Cog):
                 await robust_log(self.bot, "[WARN] GUILD_ID not found; syncing globally.")
                 synced = await self.bot.tree.sync()
                 await robust_log(self.bot, f"[INFO] Globally synced {len(synced)} commands.")
-                return
-
-            guild = discord.Object(id=guild_id)
-            for cmd in [
-                self.onboard, self.reminder, self.submit_quote, self.submit_journal,
-                self.unsubscribe, self.help_command, self.onboarding_status,
-                self.clear_onboarding, self.test, self.version
-            ]:
-                self.bot.tree.add_command(cmd, guild=guild)
-
-            synced = await self.bot.tree.sync(guild=guild)
-            await robust_log(self.bot, f"[INFO] Synced {len(synced)} commands to guild {guild_id}")
-
+            else:
+                guild = discord.Object(id=guild_id)
+                synced = await self.bot.tree.sync(guild=guild)
+                await robust_log(self.bot, f"[INFO] Synced {len(synced)} commands to guild {guild_id}")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] Failed to sync commands", e)
 
@@ -219,7 +204,9 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="version", description="Show the bot's current version")
     async def version(self, interaction: discord.Interaction):
         try:
-            await self.safe_send(interaction, f"🤖 Bot Version: **{BOT_VERSION}**")
+            version = getattr(self.bot, "GBPBot_version", {})
+            version_str = f"{version.get('major',0)}.{version.get('minor',0)}.{version.get('patch',0)}.{version.get('build',0)}"
+            await self.safe_send(interaction, f"🤖 Bot Version: **{version_str}**")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /version command failed", e)
 

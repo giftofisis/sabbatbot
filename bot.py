@@ -14,6 +14,18 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
 
 # -----------------------
+# GBPBot Version Tracker
+# -----------------------
+GBPBot_version = {
+    "major": 1,
+    "minor": 2,
+    "patch": 3,
+    "build": 5,  # increment on every build
+    "date": "2025-09-19T09:05:00Z",
+    "notes": "current build with fixed bot.py and cogs"
+}
+
+# -----------------------
 # Intents & Bot Setup
 # -----------------------
 intents = discord.Intents.default()
