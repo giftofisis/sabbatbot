@@ -5,7 +5,7 @@ import random
 import datetime
 from zoneinfo import ZoneInfo
 
-from .db import (
+from db import (
     get_user_preferences, set_subscription,
     add_quote, add_journal_prompt,
     get_all_quotes, get_all_journal_prompts,
