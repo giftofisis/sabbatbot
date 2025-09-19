@@ -5,74 +5,47 @@ import random
 import datetime
 from zoneinfo import ZoneInfo
 
-from db import (
+from .db import (
     get_user_preferences, set_subscription,
     add_quote, add_journal_prompt,
     get_all_quotes, get_all_journal_prompts,
     clear_user_preferences
 )
 from .reminders import REGIONS, ReminderButtons
-from utils.logger import robust_log
-from onboarding import OnboardingCog  # For /onboard integration
+from .onboarding import OnboardingDM
+from ..utils.logger import robust_log  # adjust path if utils is at root
 
+# -----------------------
+# Bot Version
+# -----------------------
+BOT_VERSION = "1.2.3.4"
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Sync app commands when cog loads
+    # -----------------------
+    # Sync commands on load
+    # -----------------------
     async def cog_load(self):
         try:
             guild_id = getattr(self.bot, "GUILD_ID", None)
             if guild_id is None:
-                await robust_log(self.bot, "[WARN] GUILD_ID not found on bot; syncing globally.")
+                await robust_log(self.bot, "[WARN] GUILD_ID not found; syncing globally.")
                 synced = await self.bot.tree.sync()
-                await robust_log(self.bot, f"[INFO] Globally synced {len(synced)} commands: {[c.name for c in synced]}")
+                await robust_log(self.bot, f"[INFO] Globally synced {len(synced)} commands.")
                 return
 
             guild = discord.Object(id=guild_id)
-
-            # Add all commands explicitly to the guild
             for cmd in [
-                self.reminder, self.submit_quote, self.submit_journal,
+                self.onboard, self.reminder, self.submit_quote, self.submit_journal,
                 self.unsubscribe, self.help_command, self.onboarding_status,
-                self.clear_onboarding, self.test
+                self.clear_onboarding, self.test, self.version
             ]:
                 self.bot.tree.add_command(cmd, guild=guild)
 
-            # -----------------------
-            # Add /onboard command from OnboardingCog
-            # -----------------------
-            try:
-                # Ensure OnboardingCog is loaded
-                if not self.bot.get_cog("OnboardingCog"):
-                    await self.bot.load_extension("cogs.onboarding")
-                    await robust_log(self.bot, "✅ OnboardingCog loaded for /onboard command.")
-
-                # Add onboard slash command
-                onboard_cog = self.bot.get_cog("OnboardingCog")
-                if onboard_cog:
-                    self.bot.tree.add_command(onboard_cog.onboard, guild=guild)
-                    await robust_log(self.bot, "✅ /onboard command registered.")
-            except Exception as e:
-                await robust_log(self.bot, f"[ERROR] Failed to register /onboard command: {e}")
-
-            # Sync commands to the guild
             synced = await self.bot.tree.sync(guild=guild)
-            await robust_log(
-                self.bot,
-                f"[INFO] Synced {len(synced)} commands to guild {guild_id}: {[c.name for c in synced]}"
-            )
-
-            # Check for missing commands
-            expected = [
-                "reminder", "submit_quote", "submit_journal",
-                "unsubscribe", "help", "onboarding_status",
-                "clear_onboarding", "test", "onboard"
-            ]
-            missing = [cmd for cmd in expected if cmd not in [c.name for c in synced]]
-            if missing:
-                await robust_log(self.bot, f"[WARN] Missing commands after sync: {missing}")
+            await robust_log(self.bot, f"[INFO] Synced {len(synced)} commands to guild {guild_id}")
 
         except Exception as e:
             await robust_log(self.bot, "[ERROR] Failed to sync commands", e)
@@ -91,7 +64,22 @@ class CommandsCog(commands.Cog):
         except discord.Forbidden:
             await robust_log(self.bot, f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}")
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] Failed safe_send", e)
+            await robust_log(self.bot, "[ERROR] Failed safe_send", e)
+
+    # -----------------------
+    # /onboard Command
+    # -----------------------
+    @app_commands.command(name="onboard", description="Start onboarding")
+    async def onboard(self, interaction: discord.Interaction):
+        try:
+            await self.safe_send(interaction, "📬 Check your DMs! Starting onboarding...")
+            onboarding = OnboardingDM(self.bot, interaction.user)
+            await onboarding.start()
+        except discord.Forbidden:
+            await self.safe_send(interaction, "⚠️ I couldn't DM you. Please enable DMs from server members.")
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /onboard failed for {interaction.user.id}", e)
+            await self.safe_send(interaction, "⚠️ Failed to start onboarding.")
 
     # -----------------------
     # /reminder Command
@@ -174,12 +162,12 @@ class CommandsCog(commands.Cog):
             embed = discord.Embed(title="🌙 Bot Help", color=0x9b59b6)
             embed.add_field(name="/onboard", value="Start onboarding to select region, zodiac, and reminders.", inline=False)
             embed.add_field(name="/reminder", value="Receive your daily interactive reminder immediately.", inline=False)
-            embed.add_field(name="/status", value="Show bot status, next Sabbat, full moon, and user counts.", inline=False)
             embed.add_field(name="/submit_quote <text>", value="Submit an inspirational quote for reminders.", inline=False)
             embed.add_field(name="/submit_journal <text>", value="Submit a journal prompt for daily reminders.", inline=False)
             embed.add_field(name="/unsubscribe", value="Stop receiving daily DM reminders.", inline=False)
             embed.add_field(name="/onboarding_status", value="Check which members have completed onboarding.", inline=False)
             embed.add_field(name="/clear_onboarding", value="Clear your onboarding status to start again.", inline=False)
+            embed.add_field(name="/version", value="Show the bot's current version.", inline=False)
             embed.add_field(name="/test", value="Test if the bot is responsive.", inline=False)
             await self.safe_send(interaction.user, embed=embed)
             await self.safe_send(interaction, "✅ Help sent to your DMs.")
@@ -225,6 +213,16 @@ class CommandsCog(commands.Cog):
             await self.safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
 
     # -----------------------
+    # /version Command
+    # -----------------------
+    @app_commands.command(name="version", description="Show the bot's current version")
+    async def version(self, interaction: discord.Interaction):
+        try:
+            await self.safe_send(interaction, f"🤖 Bot Version: **{BOT_VERSION}**")
+        except Exception as e:
+            await robust_log(self.bot, "[ERROR] /version command failed", e)
+
+    # -----------------------
     # /test Command
     # -----------------------
     @app_commands.command(name="test", description="Test if the bot is working")
@@ -235,5 +233,8 @@ class CommandsCog(commands.Cog):
             await robust_log(self.bot, "[ERROR] /test command failed", e)
 
 
+# -----------------------
+# Cog Setup
+# -----------------------
 async def setup(bot):
     await bot.add_cog(CommandsCog(bot))
