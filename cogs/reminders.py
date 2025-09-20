@@ -19,7 +19,7 @@ from version_tracker import GBPBot_version, file_versions, get_file_version  # v
 # -----------------------
 # Config
 # -----------------------
-REGIONS = {  # line 12
+REGIONS = {  #line22
     "North America": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🗽", "color": 0x2ecc71},
     "South America": {"name": "South America", "role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
     "Europe": {"name": "Europe", "role_id": 1416439011517534288, "tz": "Europe/London", "emoji": "🍀", "color": 0x3498db},
@@ -27,7 +27,7 @@ REGIONS = {  # line 12
     "Oceania & Asia": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
 }
 
-SABBATS = {
+SABBATS = { #line30
     "Imbolc": (2, 1),
     "Ostara": (3, 20),
     "Beltane": (5, 1),

@@ -1,5 +1,5 @@
 import traceback
-from discord import MISSING, Interaction
+from discord import Interaction
 from utils.logger import robust_log
 
 async def safe_send(user_or_interaction, content=None, embed=None, view=None, ephemeral=False):
@@ -24,3 +24,10 @@ async def safe_send(user_or_interaction, content=None, embed=None, view=None, ep
     except Exception as e:
         client_info = getattr(user_or_interaction, "client", None)
         await robust_log(client_info, f"[ERROR] Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}")  #endline26
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-20 12:50] v1.0.1b1 - Removed deprecated 'MISSING' import from discord
+# [2025-09-20 12:51] v1.0.1b2 - Updated function defaults to use None instead of MISSING
+# [2025-09-20 12:52] v1.0.1b3 - Ensured compatibility with current discord.py Interaction typing
+# [2025-09-20 12:53] v1.0.1b4 - Minor cleanups and removed unused imports

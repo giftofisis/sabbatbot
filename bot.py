@@ -26,10 +26,13 @@ GUILD_ID = int(os.getenv("GUILD_ID"))
 GBPBot_version = {
     "major": 1,
     "minor": 2,
-    "patch": 3,
-    "build": 5,  # increment on every build
-    "date": "2025-09-19T09:05:00Z",
-    "notes": "current build with fixed bot.py and cogs"
+    "patch": 4,  # incremented due to fixes and improvements
+    "build": 6,  # incremented for this deployment
+    "date": "2025-09-20T12:50:00Z",
+    "notes": (
+        "v1.2.4.6 - Safe_send import fixed, onboarding flow fully robust, "
+        "daily reminders loop fixed, version tracking added to all cogs."
+    )
 }
 
 # -----------------------
