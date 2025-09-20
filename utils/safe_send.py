@@ -23,7 +23,8 @@ async def safe_send(user_or_interaction, content=None, embed=None, view=None, ep
             await user_or_interaction.send(content=content, embed=embed, view=view)
     except Exception as e:
         client_info = getattr(user_or_interaction, "client", None)
-        await robust_log(client_info, f"[ERROR] Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}")  #endline26
+        await robust_log(client_info, f"[ERROR] Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}")
+
 # -----------------------
 # CHANGE LOG
 # -----------------------
