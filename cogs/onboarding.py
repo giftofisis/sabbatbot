@@ -1,9 +1,15 @@
+# GBPBot - onboarding.py
+# Version: 1.0.0 build 1
+# Last Updated: 2025-09-20
+# Notes: Multi-step DM onboarding with safe_send, cancel support, robust logging
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 from utils.safe_send import safe_send
 from db import save_user_preferences
 from utils.logger import robust_log
+from version_tracker import GBPBot_version, file_versions, get_file_version  # version tracker
 import traceback
 
 # -----------------------
@@ -92,7 +98,6 @@ class OnboardingDM:
         await safe_send(dm, "Do you want to receive daily reminders?", view=view)
         await view.wait()
 
-
 # -----------------------
 # Cog
 # -----------------------
@@ -124,16 +129,17 @@ class OnboardingCog(commands.Cog):
             await robust_log(self.bot, f"[ERROR] /onboard failed {interaction.user.id}\n{tb}")
             await safe_send(interaction, "⚠️ Failed to start onboarding.", ephemeral=True)
 
-
 # -----------------------
 # Setup
 # -----------------------
 async def setup(bot):
-    await bot.add_cog(OnboardingCog(bot))  #endline132
+    await bot.add_cog(OnboardingCog(bot))
+    await robust_log(bot, f"✅ OnboardingCog loaded | version {get_file_version('onboarding.py')}")
 
 # -----------------------
-# CHANGE LOG (for bug tracking)
+# CHANGE LOG
 # -----------------------
-# 2025-09-20: Rewritten onboarding flow with interactive buttons:
+# [2025-09-20 12:45] v1.0.0b1 - Added version_tracker import, version comment, and change tracking
+# [2025-09-20 12:46] Rewritten onboarding flow with interactive buttons:
 #             Region → Zodiac → Daily reminders subscription.
 #             Uses safe_send for all messages. Daily subscription now recorded in DB.

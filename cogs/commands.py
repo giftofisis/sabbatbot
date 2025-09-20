@@ -15,6 +15,8 @@ from db import (
 from cogs.reminders import REGIONS, ReminderButtons
 from cogs.onboarding import OnboardingDM
 from utils.logger import robust_log  # absolute import from root utils
+from version_tracker import GBPBot_version, file_versions, get_file_version
+
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -174,9 +176,9 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="version", description="Show the bot's current version")
     async def version(self, interaction: discord.Interaction):
         try:
-            version = getattr(self.bot, "GBPBot_version", {})
-            version_str = f"{version.get('major',0)}.{version.get('minor',0)}.{version.get('patch',0)}.{version.get('build',0)}"
-            await safe_send(interaction, f"🤖 Bot Version: **{version_str}**")
+            version_str = f"{GBPBot_version['major']}.{GBPBot_version['minor']}.{GBPBot_version['patch']}.{GBPBot_version['build']}"
+            file_ver = get_file_version("commands.py")
+            await safe_send(interaction, f"🤖 Bot Version: **{version_str}**\n📄 commands.py Version: **{file_ver}**")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /version command failed", e)
 

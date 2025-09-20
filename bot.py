@@ -1,3 +1,8 @@
+# GBPBot - bot.py
+# Version: 1.2.3 build 5
+# Last Updated: 2025-09-19
+# Notes: Current build with fixed bot.py and cogs
+
 import os
 import discord
 from discord.ext import commands
@@ -6,6 +11,8 @@ import traceback
 
 from db import init_db as db_init
 from utils.logger import robust_log  # centralized logger
+
+from version_tracker import GBPBot_version, file_versions, get_file_version  # version tracker
 
 # -----------------------
 # Environment Variables
@@ -91,4 +98,9 @@ async def main():
         await bot.start(TOKEN)
 
 if __name__ == "__main__":
-    asyncio.run(main())#endline94
+    asyncio.run(main())
+
+# -----------------------
+# Change Tracking
+# -----------------------
+# [2025-09-20 12:30] v1.2.3b5 - Added version comment and change tracking comment
