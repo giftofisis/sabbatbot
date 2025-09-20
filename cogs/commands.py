@@ -208,5 +208,6 @@ async def setup(bot):
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 13:10 BST] v1.1.0b1 - Added safe_send to all commands, robust logging, and file version display for /version
-# [2025-09-20 13:15 BST] v1.1.0b2 - Fully integrated robust safe_send fix for NoneType is_finished errors in all commands
+# [2025-09-20 12:30 BST] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
+# [2025-09-20 12:35 BST] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
+# [2025-09-20 12:40 BST] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
