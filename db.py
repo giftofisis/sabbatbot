@@ -1,32 +1,91 @@
-@ -1,3 +1,8 @@
+# GBPBot - db.py
+# Version: 1.0.3 build 1
+# Last Updated: 2025-09-20
+# Notes:
+# - Added support for 'daily' user preference.
+# - Updated save_user_preferences and get_user_preferences to handle 'daily'.
+# - Added automatic ALTER TABLE in init_db to add 'daily' column if it doesn't exist.
+# - Backwards-compatible with set_user_preferences alias.
+# - All existing functions preserved.
+
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-20 12:30 BST] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
+# [2025-09-20 12:35 BST] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
+# [2025-09-20 12:40 BST] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
+
 import sqlite3
 from typing import List, Optional, Tuple
 import traceback
-@ -6,7 +11,6 @@ import asyncio
+import asyncio
+
 from utils.logger import robust_log
 from version_tracker import GBPBot_version, file_versions, get_file_version
-
 
 DB_FILE = "bot_data.db"
 DEFAULT_DAYS = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
 
-@ -43,7 +47,8 @@ async def init_db(bot=None) -> None:
-            zodiac TEXT,
-            reminder_hour INTEGER DEFAULT 9,
-            reminder_days TEXT DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
-            subscribed INTEGER DEFAULT 1
-        )
+DEFAULT_QUOTES = [
+    "🌿 May the Wheel of the Year turn in your favor.",
+    "🌕 Reflect, release, and renew under the Moon's light.",
+    "✨ Blessed be, traveler of the mystical paths.",
+    "🔥 May your rituals be fruitful and your intentions clear.",
+    "🌱 Growth is guided by the cycles of the Earth and Moon"
+]
+
+DEFAULT_PROMPTS = [
+    "What are three things you are grateful for today?",
+    "Reflect on a recent challenge and what you learned.",
+    "What intention do you want to set for today?"
+]
+
+# -----------------------
+# Initialization
+# -----------------------
+async def init_db(bot=None) -> None:
+    """
+    Async DB initialization.
+    Creates tables and pre-populates quotes and prompts.
+    Automatically adds 'daily' column if missing.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # Users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                region TEXT,
+                zodiac TEXT,
+                reminder_hour INTEGER DEFAULT 9,
+                reminder_days TEXT DEFAULT 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
+                subscribed INTEGER DEFAULT 1
+            )
         """)
 
-@ -56,216 +61,3 @@ async def init_db(bot=None) -> None:
+        # Ensure daily column exists
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN daily INTEGER DEFAULT 1")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+
+        # Quotes table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quotes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                quote TEXT
+            )
         """)
 
         # Journal Prompts table
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS journal_prompts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prompt TEXT
-        )
+            CREATE TABLE IF NOT EXISTS journal_prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt TEXT
+            )
         """)
 
         conn.commit()
@@ -34,13 +93,19 @@ DEFAULT_DAYS = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
         # Pre-populate quotes
         cursor.execute("SELECT COUNT(*) FROM quotes")
         if cursor.fetchone()[0] == 0:
-            cursor.executemany("INSERT INTO quotes (quote) VALUES (?)", [(q,) for q in DEFAULT_QUOTES])
+            cursor.executemany(
+                "INSERT INTO quotes (quote) VALUES (?)",
+                [(q,) for q in DEFAULT_QUOTES]
+            )
             conn.commit()
 
         # Pre-populate prompts
         cursor.execute("SELECT COUNT(*) FROM journal_prompts")
         if cursor.fetchone()[0] == 0:
-            cursor.executemany("INSERT INTO journal_prompts (prompt) VALUES (?)", [(p,) for p in DEFAULT_PROMPTS])
+            cursor.executemany(
+                "INSERT INTO journal_prompts (prompt) VALUES (?)",
+                [(p,) for p in DEFAULT_PROMPTS]
+            )
             conn.commit()
 
         if bot:
@@ -51,9 +116,9 @@ DEFAULT_DAYS = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
             await robust_log(bot, f"❌ Failed to initialize DB: {e}", exc=traceback.format_exc())
         else:
             print(f"DB init error: {e}\n{traceback.format_exc()}")
+
     finally:
         conn.close()
-
 
 # -----------------------
 # User Preferences
@@ -65,6 +130,7 @@ async def save_user_preferences(
     hour: Optional[int] = None,
     days: Optional[List[str]] = None,
     subscribed: Optional[bool] = None,
+    daily: Optional[bool] = None,  # new parameter
     bot=None
 ) -> None:
     """
@@ -73,26 +139,30 @@ async def save_user_preferences(
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
+
         cursor.execute(
-            "SELECT region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE user_id = ?",
+            "SELECT region, zodiac, reminder_hour, reminder_days, subscribed, daily FROM users WHERE user_id = ?",
             (user_id,)
         )
         row = cursor.fetchone()
         if row:
-            cur_region, cur_zodiac, cur_hour, cur_days, cur_sub = row
+            cur_region, cur_zodiac, cur_hour, cur_days, cur_sub, cur_daily = row
         else:
-            cur_region, cur_zodiac, cur_hour, cur_days, cur_sub = (None, None, 9, DEFAULT_DAYS, 1)
+            cur_region, cur_zodiac, cur_hour, cur_days, cur_sub, cur_daily = (None, None, 9, DEFAULT_DAYS, 1, 1)
 
         new_region = region if region is not None else cur_region
         new_zodiac = zodiac if zodiac is not None else cur_zodiac
         new_hour = hour if hour is not None else cur_hour
         new_days = ",".join(days) if days is not None else cur_days
         new_subscribed = int(subscribed) if subscribed is not None else cur_sub
+        new_daily = int(daily) if daily is not None else cur_daily
 
         cursor.execute("""
-        INSERT OR REPLACE INTO users (user_id, region, zodiac, reminder_hour, reminder_days, subscribed)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (user_id, new_region, new_zodiac, new_hour, new_days, new_subscribed))
+            INSERT OR REPLACE INTO users
+            (user_id, region, zodiac, reminder_hour, reminder_days, subscribed, daily)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, new_region, new_zodiac, new_hour, new_days, new_subscribed, new_daily))
+
         conn.commit()
 
     except Exception as e:
@@ -100,6 +170,7 @@ async def save_user_preferences(
             await robust_log(bot, f"❌ Failed to save user preferences for {user_id}: {e}", exc=traceback.format_exc())
         else:
             print(f"Save user prefs error: {e}\n{traceback.format_exc()}")
+
     finally:
         conn.close()
 
@@ -108,22 +179,26 @@ async def get_user_preferences(user_id: int) -> Optional[dict]:
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
+
         cursor.execute(
-            "SELECT region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE user_id = ?",
+            "SELECT region, zodiac, reminder_hour, reminder_days, subscribed, daily FROM users WHERE user_id = ?",
             (user_id,)
         )
         row = cursor.fetchone()
         if row:
-            region, zodiac, hour, days, subscribed = row
+            region, zodiac, hour, days, subscribed, daily = row
             return {
                 "region": region,
                 "zodiac": zodiac,
                 "hour": hour,
                 "days": days.split(",") if days else DEFAULT_DAYS.split(","),
-                "subscribed": bool(subscribed)
+                "subscribed": bool(subscribed),
+                "daily": bool(daily)
             }
+
     except Exception as e:
         print(f"Get user prefs error: {e}\n{traceback.format_exc()}")
+
     finally:
         conn.close()
     return None
@@ -137,21 +212,22 @@ async def set_subscription(user_id: int, status: bool, bot=None) -> None:
 # Clear User Preferences
 # -----------------------
 async def clear_user_preferences(user_id: int, bot=None) -> None:
-    """
-    Deletes a user's preferences from the DB.
-    """
+    """ Deletes a user's preferences from the DB. """
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
         conn.commit()
+
         if bot:
             await robust_log(bot, f"✅ Cleared preferences for user {user_id}.")
+
     except Exception as e:
         if bot:
             await robust_log(bot, f"❌ Failed to clear preferences for {user_id}: {e}", exc=traceback.format_exc())
         else:
             print(f"Clear user prefs error: {e}\n{traceback.format_exc()}")
+
     finally:
         conn.close()
 
@@ -165,11 +241,13 @@ async def add_quote(quote: str, bot=None) -> None:
         cursor = conn.cursor()
         cursor.execute("INSERT INTO quotes (quote) VALUES (?)", (quote,))
         conn.commit()
+
     except Exception as e:
         if bot:
             await robust_log(bot, f"❌ Failed to add quote: {e}", exc=traceback.format_exc())
         else:
             print(f"Add quote error: {e}\n{traceback.format_exc()}")
+
     finally:
         conn.close()
 
@@ -192,11 +270,13 @@ async def add_journal_prompt(prompt: str, bot=None) -> None:
         cursor = conn.cursor()
         cursor.execute("INSERT INTO journal_prompts (prompt) VALUES (?)", (prompt,))
         conn.commit()
+
     except Exception as e:
         if bot:
             await robust_log(bot, f"❌ Failed to add journal prompt: {e}", exc=traceback.format_exc())
         else:
             print(f"Add journal prompt error: {e}\n{traceback.format_exc()}")
+
     finally:
         conn.close()
 
@@ -216,17 +296,21 @@ async def get_all_journal_prompts() -> List[str]:
 async def get_all_subscribed_users() -> List[Tuple]:
     """
     Return list of rows for subscribed users:
-    (user_id, region, zodiac, reminder_hour, reminder_days, subscribed)
+    (user_id, region, zodiac, reminder_hour, reminder_days, subscribed, daily)
     """
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed FROM users WHERE subscribed = 1")
+        cursor.execute(
+            "SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed, daily FROM users WHERE subscribed = 1"
+        )
         rows = cursor.fetchall()
         return rows
+
     except Exception as e:
         print(f"Get subscribed users error: {e}\n{traceback.format_exc()}")
         return []
+
     finally:
         conn.close()
 
@@ -234,4 +318,4 @@ async def get_all_subscribed_users() -> List[Tuple]:
 # -----------------------
 # Aliases for backward compatibility
 # -----------------------
-set_user_preferences = save_user_preferences#endline269
+set_user_preferences = save_user_preferences
