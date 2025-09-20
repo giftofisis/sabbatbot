@@ -1,7 +1,7 @@
 # GBPBot - onboarding.py
-# Version: 1.0.0 build 1
+# Version: 1.0.1 build 3
 # Last Updated: 2025-09-20
-# Notes: Multi-step DM onboarding with safe_send, cancel support, robust logging
+# Notes: Multi-step DM onboarding with safe_send, cancel support, robust logging, fixed view is_finished bug
 
 import discord
 from discord.ext import commands
@@ -151,3 +151,4 @@ async def setup(bot):
 #             Uses safe_send for all messages. Daily subscription now recorded in DB
 # [2025-09-20 12:54] v1.0.1b1 - Updated safe_send import for v1.0.1b4 compatibility
 # [2025-09-20 12:55] v1.0.1b2 - Confirmed callbacks correctly set for Discord buttons with view.stop()
+# [2025-09-20 13:10] v1.0.1b3 - Integrated robust safe_send fix for NoneType is_finished error in all sends

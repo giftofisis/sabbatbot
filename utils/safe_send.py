@@ -1,39 +1,59 @@
+# safe_send.py
+"""
+GBPBot Safe Send Utility
+-----------------------
+Handles sending messages to users or interactions safely.
+- Works for DMs and interactions.
+- Handles views that may be finished or None.
+- Avoids 'This interaction failed' errors.
+- Logs all exceptions via robust_log.
+"""
+
 import traceback
-from discord import Interaction
+import discord
 from utils.logger import robust_log
 
+# -----------------------
+# Changelog
+# -----------------------
+# 2025-09-20: Initial robust safe_send for GBPBot
+# 2025-09-20: Added interaction response lifecycle handling
+# 2025-09-20: Added view None/type check to fix 'NoneType is_finished' error
+# 2025-09-20: Logs all exceptions without crashing bot
+
 async def safe_send(user_or_interaction, content=None, embed=None, view=None, ephemeral=False):
-    """
-    Safely send a message to a user or interaction.
-    - Handles None or finished views.
-    - Handles interactions that may already have responded.
-    - Logs all exceptions without crashing.
-    """
     try:
-        # Interaction handling
-        if isinstance(user_or_interaction, Interaction):
-            # Prevent passing a finished view
-            if view is not None and getattr(view, "is_finished", lambda: False)():
-                view = None
+        # Handle discord.Interaction
+        if isinstance(user_or_interaction, discord.Interaction):
+            # Check if interaction has already responded
+            responded = False
+            try:
+                responded = user_or_interaction.response.is_done()
+            except Exception:
+                # Fallback in case is_done fails
+                responded = False
 
-            if not user_or_interaction.response.is_done():
-                # Interaction not responded yet
-                await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
+            # Ensure view is valid
+            if view is not None and getattr(view, "is_finished", None):
+                if view.is_finished():
+                    view = None
+
+            # Send message safely
+            if not responded:
+                await user_or_interaction.response.send_message(
+                    content=content, embed=embed, view=view, ephemeral=ephemeral
+                )
             else:
-                # Already responded, use followup
-                await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
-        else:
-            # Direct DM or channel
-            await user_or_interaction.send(content=content, embed=embed, view=view)
-    except Exception as e:
-        client_info = getattr(user_or_interaction, "client", None)
-        await robust_log(client_info, f"[ERROR] Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}")
+                # Follow-up if already responded
+                await user_or_interaction.followup.send(
+                    content=content, embed=embed, view=view, ephemeral=ephemeral
+                )
 
-# -----------------------
-# CHANGE LOG
-# -----------------------
-# [2025-09-20 12:50] v1.0.1b1 - Removed deprecated 'MISSING' import from discord
-# [2025-09-20 12:51] v1.0.1b2 - Updated function defaults to use None instead of MISSING
-# [2025-09-20 12:52] v1.0.1b3 - Ensured compatibility with current discord.py Interaction typing
-# [2025-09-20 12:53] v1.0.1b4 - Minor cleanups and removed unused imports
-# [2025-09-20 13:10] v1.0.1b5 - Fixed AttributeError when view is None or finished
+        # Handle discord.User or discord.Member
+        else:
+            await user_or_interaction.send(content=content, embed=embed, view=view)
+
+    except Exception as e:
+        robust_log(
+            f"Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}"
+        )

@@ -1,8 +1,9 @@
 # GBPBot - reminders.py
-# Version: 1.0.1 build 2
+# Version: 1.0.1 build 3
 # Last Updated: 2025-09-20
 # Notes: Handles all region-based daily reminders, Sabbat & full moon buttons, random quotes/journal prompts
-#        Integrated safe_send and robust logging. Added version_tracker integration.
+#        Fully integrated safe_send and robust logging with fix for NoneType is_finished error.
+#        Added version_tracker integration.
 
 import discord
 from discord.ext import commands, tasks
@@ -203,4 +204,5 @@ async def setup(bot):
 # CHANGE LOG
 # -----------------------
 # [2025-09-20 12:50] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop
+# [2025-09-20 13:12] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends
 # [2025-09-20 12:45] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging
