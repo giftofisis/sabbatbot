@@ -1,8 +1,9 @@
 # GBPBot - commands.py
-# Version: 1.1.0 build 2
-# Last Updated: 2025-09-20T13:15:00+01:00 (BST)
+# Version: 1.1.0 build 3
+# Last Updated: 2025-09-20
 # Notes: All slash commands and helper commands updated with safe_send, robust logging, and file version tracking
 #        Fully integrated safe_send fix for NoneType is_finished errors.
+#        Removed duplicate /onboard registration and updated /help to reference DM onboarding.
 
 import discord
 from discord.ext import commands
@@ -19,9 +20,9 @@ from db import (
     clear_user_preferences
 )
 from cogs.reminders import REGIONS, ReminderButtons
-from cogs.onboarding import OnboardingDM
 from utils.logger import robust_log
 from version_tracker import GBPBot_version, get_file_version
+
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -52,7 +53,7 @@ class CommandsCog(commands.Cog):
         try:
             prefs = await get_user_preferences(interaction.user.id)
             if not prefs or not prefs.get("subscribed", False):
-                await safe_send(interaction, "⚠️ You are not subscribed. Use `/onboard` to set your preferences.")
+                await safe_send(interaction, "⚠️ You are not subscribed. Use `/onboard` in DMs to set your preferences.")
                 return
 
             region_data = REGIONS.get(prefs.get("region"))
@@ -123,7 +124,6 @@ class CommandsCog(commands.Cog):
     async def help_command(self, interaction: discord.Interaction):
         try:
             embed = discord.Embed(title="🌙 Bot Help", color=0x9b59b6)
-            embed.add_field(name="/onboard", value="Start onboarding to select region, zodiac, and reminders.", inline=False)
             embed.add_field(name="/reminder", value="Receive your daily interactive reminder immediately.", inline=False)
             embed.add_field(name="/submit_quote <text>", value="Submit an inspirational quote for reminders.", inline=False)
             embed.add_field(name="/submit_journal <text>", value="Submit a journal prompt for daily reminders.", inline=False)
@@ -132,6 +132,7 @@ class CommandsCog(commands.Cog):
             embed.add_field(name="/clear_onboarding", value="Clear your onboarding status to start again.", inline=False)
             embed.add_field(name="/version", value="Show the bot's current version.", inline=False)
             embed.add_field(name="/test", value="Test if the bot is responsive.", inline=False)
+            embed.set_footer(text="Use `/onboard` in DMs to start your onboarding process.")
             await safe_send(interaction.user, embed=embed)
             await safe_send(interaction, "✅ Help sent to your DMs.")
         except Exception as e:
@@ -208,6 +209,6 @@ async def setup(bot):
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 12:30 BST] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
-# [2025-09-20 12:35 BST] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
-# [2025-09-20 12:40 BST] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
+# [2025-09-20 13:10] v1.1.0b1 - Added safe_send to all commands, robust logging, and file version display for /version
+# [2025-09-20 13:15] v1.1.0b2 - Fully integrated robust safe_send fix for NoneType is_finished errors in all commands 
+# [2025-09-20 13:20] v1.1.0b3 - Removed duplicate /onboard registration and updated /help command to reference DM onboarding

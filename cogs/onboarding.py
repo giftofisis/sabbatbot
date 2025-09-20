@@ -111,10 +111,13 @@ class OnboardingDM(discord.ui.View):
         try:
             # Save preferences to DB
             await save_user_preferences(
-                self.user.id,
+                user_id=self.user.id,
                 region=self.region,
                 zodiac=self.zodiac,
+                hour=None,               # default value; will preserve existing or DB default
+                days=None,               # default value; will preserve existing or DB default
                 daily=self.subscribe_daily,
+                subscribed=True,
                 bot=self.bot
             )
 
@@ -143,9 +146,6 @@ class OnboardingDM(discord.ui.View):
             await robust_log(self.bot, f"[ERROR] Completing onboarding failed for {self.user.id}\n{tb}")
             await safe_send(interaction, "⚠️ Failed to save preferences. Try again later.", ephemeral=True, view=None)
 
-    async def cancel(self, interaction: discord.Interaction):
-        await safe_send(interaction, "❌ Onboarding cancelled. You can start again with `/onboard`.", ephemeral=True, view=None)
-        self.stop()
 
 # -----------------------
 # Cog
