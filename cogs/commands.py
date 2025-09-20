@@ -4,6 +4,7 @@ from discord import app_commands
 import random
 import datetime
 from zoneinfo import ZoneInfo
+from utils.safe_send import safe_send
 
 from db import (
     get_user_preferences, set_subscription,
@@ -37,22 +38,6 @@ class CommandsCog(commands.Cog):
             await robust_log(self.bot, "[ERROR] Failed to sync commands", e)
 
     # -----------------------
-    # Safe send helper
-    # -----------------------
-    async def safe_send(self, user_or_interaction, content=None, embed=None, view=None, ephemeral=True):
-        try:
-            if isinstance(user_or_interaction, (discord.User, discord.Member)):
-                await user_or_interaction.send(content=content, embed=embed, view=view)
-            elif hasattr(user_or_interaction, "response") and not user_or_interaction.response.is_done():
-                await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
-            else:
-                await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
-        except discord.Forbidden:
-            await robust_log(self.bot, f"[WARN] Could not DM {getattr(user_or_interaction, 'user', user_or_interaction).id}")
-        except Exception as e:
-            await robust_log(self.bot, "[ERROR] Failed safe_send", e)
-
-    # -----------------------
     # /reminder Command
     # -----------------------
     @app_commands.command(name="reminder", description="Get an interactive reminder")
@@ -60,12 +45,12 @@ class CommandsCog(commands.Cog):
         try:
             prefs = await get_user_preferences(interaction.user.id)
             if not prefs or not prefs.get("subscribed", False):
-                await self.safe_send(interaction, "⚠️ You are not subscribed. Use `/onboard` to set your preferences.")
+                await safe_send(interaction, "⚠️ You are not subscribed. Use `/onboard` to set your preferences.")
                 return
 
             region_data = REGIONS.get(prefs.get("region"))
             if not region_data:
-                await self.safe_send(interaction, "⚠️ Region not set. Please complete onboarding.")
+                await safe_send(interaction, "⚠️ Region not set. Please complete onboarding.")
                 return
 
             tz = region_data["tz"]
@@ -81,10 +66,10 @@ class CommandsCog(commands.Cog):
                 ),
                 color=region_data["color"]
             )
-            await self.safe_send(interaction, embed=embed, view=ReminderButtons(region_data))
+            await safe_send(interaction, embed=embed, view=ReminderButtons(region_data))
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /reminder command failed", e)
-            await self.safe_send(interaction, "⚠️ Could not send your reminder. Try again later.")
+            await safe_send(interaction, "⚠️ Could not send your reminder. Try again later.")
 
     # -----------------------
     # /submit_quote Command
@@ -94,10 +79,10 @@ class CommandsCog(commands.Cog):
     async def submit_quote(self, interaction: discord.Interaction, quote: str):
         try:
             await add_quote(quote, bot=self.bot)
-            await self.safe_send(interaction, "✅ Quote submitted successfully.")
+            await safe_send(interaction, "✅ Quote submitted successfully.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /submit_quote failed", e)
-            await self.safe_send(interaction, "⚠️ Could not submit quote. Try again later.")
+            await safe_send(interaction, "⚠️ Could not submit quote. Try again later.")
 
     # -----------------------
     # /submit_journal Command
@@ -107,10 +92,10 @@ class CommandsCog(commands.Cog):
     async def submit_journal(self, interaction: discord.Interaction, prompt: str):
         try:
             await add_journal_prompt(prompt, bot=self.bot)
-            await self.safe_send(interaction, "✅ Journal prompt submitted successfully.")
+            await safe_send(interaction, "✅ Journal prompt submitted successfully.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /submit_journal failed", e)
-            await self.safe_send(interaction, "⚠️ Could not submit journal prompt. Try again later.")
+            await safe_send(interaction, "⚠️ Could not submit journal prompt. Try again later.")
 
     # -----------------------
     # /unsubscribe Command
@@ -119,10 +104,10 @@ class CommandsCog(commands.Cog):
     async def unsubscribe(self, interaction: discord.Interaction):
         try:
             await set_subscription(interaction.user.id, False, bot=self.bot)
-            await self.safe_send(interaction, "❌ You have unsubscribed from daily reminders.")
+            await safe_send(interaction, "❌ You have unsubscribed from daily reminders.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /unsubscribe failed", e)
-            await self.safe_send(interaction, "⚠️ Could not update subscription. Try again later.")
+            await safe_send(interaction, "⚠️ Could not update subscription. Try again later.")
 
     # -----------------------
     # /help Command
@@ -140,11 +125,11 @@ class CommandsCog(commands.Cog):
             embed.add_field(name="/clear_onboarding", value="Clear your onboarding status to start again.", inline=False)
             embed.add_field(name="/version", value="Show the bot's current version.", inline=False)
             embed.add_field(name="/test", value="Test if the bot is responsive.", inline=False)
-            await self.safe_send(interaction.user, embed=embed)
-            await self.safe_send(interaction, "✅ Help sent to your DMs.")
+            await safe_send(interaction.user, embed=embed)
+            await safe_send(interaction, "✅ Help sent to your DMs.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /help command failed", e)
-            await self.safe_send(interaction, "⚠️ Could not send help. Try again later.")
+            await safe_send(interaction, "⚠️ Could not send help. Try again later.")
 
     # -----------------------
     # /onboarding_status Command
@@ -166,10 +151,10 @@ class CommandsCog(commands.Cog):
             embed = discord.Embed(title="📝 Onboarding Status", color=0x3498db)
             embed.add_field(name="✅ Completed Onboarding", value="\n".join(onboarded) or "None", inline=False)
             embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded) or "None", inline=False)
-            await self.safe_send(interaction, embed=embed)
+            await safe_send(interaction, embed=embed)
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /onboarding_status failed", e)
-            await self.safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
+            await safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
 
     # -----------------------
     # /clear_onboarding Command
@@ -178,10 +163,10 @@ class CommandsCog(commands.Cog):
     async def clear_onboarding(self, interaction: discord.Interaction):
         try:
             await clear_user_preferences(interaction.user.id, bot=self.bot)
-            await self.safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
+            await safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /clear_onboarding failed", e)
-            await self.safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
+            await safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
 
     # -----------------------
     # /version Command
@@ -191,7 +176,7 @@ class CommandsCog(commands.Cog):
         try:
             version = getattr(self.bot, "GBPBot_version", {})
             version_str = f"{version.get('major',0)}.{version.get('minor',0)}.{version.get('patch',0)}.{version.get('build',0)}"
-            await self.safe_send(interaction, f"🤖 Bot Version: **{version_str}**")
+            await safe_send(interaction, f"🤖 Bot Version: **{version_str}**")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /version command failed", e)
 
@@ -201,7 +186,7 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="test", description="Test if the bot is working")
     async def test(self, interaction: discord.Interaction):
         try:
-            await self.safe_send(interaction, "✅ Test successful! Bot is responsive.")
+            await safe_send(interaction, "✅ Test successful! Bot is responsive.")
         except Exception as e:
             await robust_log(self.bot, "[ERROR] /test command failed", e)
 
@@ -210,4 +195,4 @@ class CommandsCog(commands.Cog):
 # Cog Setup
 # -----------------------
 async def setup(bot):
-    await bot.add_cog(CommandsCog(bot))
+    await bot.add_cog(CommandsCog(bot))#endline215

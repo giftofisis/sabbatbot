@@ -266,4 +266,4 @@ async def get_all_subscribed_users() -> List[Tuple]:
 # -----------------------
 # Aliases for backward compatibility
 # -----------------------
-set_user_preferences = save_user_preferences
+set_user_preferences = save_user_preferences#endline269

@@ -20,4 +20,4 @@ async def robust_log(bot, message: str, error: Exception = None):
         try:
             await channel.send(f"```{log_msg}```")
         except Exception as e:
-            print(f"[ERROR] Failed to send log to channel: {e}")
+            print(f"[ERROR] Failed to send log to channel: {e}")#endline23
