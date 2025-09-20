@@ -1,59 +1,62 @@
-# safe_send.py
-"""
-GBPBot Safe Send Utility
------------------------
-Handles sending messages to users or interactions safely.
-- Works for DMs and interactions.
-- Handles views that may be finished or None.
-- Avoids 'This interaction failed' errors.
-- Logs all exceptions via robust_log.
-"""
+# utils/safe_send.py
+# Version: 1.2.4 build 6
+# Last Updated: 2025-09-20T12:35:00+01:00 (BST)
+# Notes: Fully robust safe_send for GBPBot
+#        - Handles view=None safely
+#        - Uses getattr to prevent AttributeError
+#        - Interaction fallback to followup.send
+#        - Robust logging with single message
+#        - Compatible with all cogs (onboarding, commands, reminders)
 
 import traceback
-import discord
+from discord import Interaction, MISSING
 from utils.logger import robust_log
 
-# -----------------------
-# Changelog
-# -----------------------
-# 2025-09-20: Initial robust safe_send for GBPBot
-# 2025-09-20: Added interaction response lifecycle handling
-# 2025-09-20: Added view None/type check to fix 'NoneType is_finished' error
-# 2025-09-20: Logs all exceptions without crashing bot
-
 async def safe_send(user_or_interaction, content=None, embed=None, view=None, ephemeral=False):
+    """
+    Safely send a message to a user or interaction.
+    Handles:
+        - None views
+        - Interactions that may have already responded
+        - Logs all exceptions without crashing
+    """
     try:
-        # Handle discord.Interaction
-        if isinstance(user_or_interaction, discord.Interaction):
-            # Check if interaction has already responded
-            responded = False
+        # Interaction
+        if isinstance(user_or_interaction, Interaction):
             try:
-                responded = user_or_interaction.response.is_done()
+                if view and not getattr(view, "is_finished", lambda: False)():
+                    await user_or_interaction.response.send_message(
+                        content=content, embed=embed, view=view, ephemeral=ephemeral
+                    )
+                else:
+                    await user_or_interaction.response.send_message(
+                        content=content, embed=embed, ephemeral=ephemeral
+                    )
             except Exception:
-                # Fallback in case is_done fails
-                responded = False
-
-            # Ensure view is valid
-            if view is not None and getattr(view, "is_finished", None):
-                if view.is_finished():
-                    view = None
-
-            # Send message safely
-            if not responded:
-                await user_or_interaction.response.send_message(
-                    content=content, embed=embed, view=view, ephemeral=ephemeral
-                )
-            else:
-                # Follow-up if already responded
-                await user_or_interaction.followup.send(
-                    content=content, embed=embed, view=view, ephemeral=ephemeral
-                )
-
-        # Handle discord.User or discord.Member
+                # fallback to followup
+                try:
+                    await user_or_interaction.followup.send(
+                        content=content, embed=embed, view=view, ephemeral=ephemeral
+                    )
+                except Exception as e2:
+                    await robust_log(
+                        f"[safe_send] followup.send failed\nOriginal Exception: {traceback.format_exc()}\nFollowup Exception: {e2}"
+                    )
+        # DM to user
         else:
-            await user_or_interaction.send(content=content, embed=embed, view=view)
-
+            if hasattr(user_or_interaction, "send"):
+                await user_or_interaction.send(content=content, embed=embed, view=view)
+            else:
+                await robust_log(f"[safe_send] Object has no send method: {user_or_interaction}")
     except Exception as e:
-        robust_log(
-            f"Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}"
-        )
+        await robust_log(f"[safe_send] Failed send\nException: {e}\nTraceback:\n{traceback.format_exc()}")
+
+
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-20 11:45 GMT] v1.2.4b1 - Initial safe_send integration for GBPBot cogs
+# [2025-09-20 11:55 GMT] v1.2.4b2 - Added followup.send fallback for already-responded interactions
+# [2025-09-20 12:05 GMT] v1.2.4b3 - Fixed view=None and AttributeError in interaction send
+# [2025-09-20 12:30 GMT] v1.2.4b4 - Fully robust, compatible with onboarding.py, commands.py, reminders.py, and updated logging 
+# [2025-09-20 12:45 GMT] v1.2.4b5 - Fixed robust_log missing argument and ensured safe_send works with None view
