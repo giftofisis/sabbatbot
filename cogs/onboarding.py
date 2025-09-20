@@ -41,7 +41,13 @@ class OnboardingDM:
             await self.select_zodiac(dm)
             await self.ask_subscription(dm)
 
-            await save_user_preferences(self.user.id, region=self.region, zodiac=self.zodiac, daily=self.subscribe_daily, bot=self.bot)
+            await save_user_preferences(
+                self.user.id,
+                region=self.region,
+                zodiac=self.zodiac,
+                daily=self.subscribe_daily,
+                bot=self.bot
+            )
             await safe_send(dm, "🎉 Onboarding complete! Your preferences have been saved.")
 
         except Exception:
@@ -142,4 +148,6 @@ async def setup(bot):
 # [2025-09-20 12:45] v1.0.0b1 - Added version_tracker import, version comment, and change tracking
 # [2025-09-20 12:46] Rewritten onboarding flow with interactive buttons:
 #             Region → Zodiac → Daily reminders subscription.
-#             Uses safe_send for all messages. Daily subscription now recorded in DB.
+#             Uses safe_send for all messages. Daily subscription now recorded in DB
+# [2025-09-20 12:54] v1.0.1b1 - Updated safe_send import for v1.0.1b4 compatibility
+# [2025-09-20 12:55] v1.0.1b2 - Confirmed callbacks correctly set for Discord buttons with view.stop()

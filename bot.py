@@ -1,7 +1,7 @@
 # GBPBot - bot.py
-# Version: 1.2.3 build 5
-# Last Updated: 2025-09-19
-# Notes: Current build with fixed bot.py and cogs
+# Version: 1.2.4 build 6
+# Last Updated: 2025-09-20
+# Notes: Safe_send fixed, onboarding flow robust, daily reminder loop fixed, version tracking added to all cogs
 
 import os
 import discord
@@ -10,30 +10,14 @@ import asyncio
 import traceback
 
 from db import init_db as db_init
-from utils.logger import robust_log  # centralized logger
-
-from version_tracker import GBPBot_version, file_versions, get_file_version  # version tracker
+from utils.logger import robust_log
+from version_tracker import GBPBot_version, get_file_version
 
 # -----------------------
 # Environment Variables
 # -----------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
-
-# -----------------------
-# GBPBot Version Tracker
-# -----------------------
-GBPBot_version = {
-    "major": 1,
-    "minor": 2,
-    "patch": 4,  # incremented due to fixes and improvements
-    "build": 6,  # incremented for this deployment
-    "date": "2025-09-20T12:50:00Z",
-    "notes": (
-        "v1.2.4.6 - Safe_send import fixed, onboarding flow fully robust, "
-        "daily reminders loop fixed, version tracking added to all cogs."
-    )
-}
 
 # -----------------------
 # Intents & Bot Setup
@@ -62,12 +46,15 @@ class MyBot(commands.Bot):
         for cog in ["cogs.onboarding", "cogs.reminders", "cogs.commands"]:
             try:
                 await self.load_extension(cog)
-                await robust_log(self, f"✅ Loaded cog {cog}")
+                await robust_log(
+                    self,
+                    f"✅ Loaded cog {cog} | version {get_file_version(cog.split('.')[-1] + '.py')}"
+                )
             except Exception:
                 tb = traceback.format_exc()
                 await robust_log(self, f"[ERROR] Failed to load cog {cog}\n{tb}")
 
-        # Sync commands to guild for faster testing
+        # Sync commands to guild
         try:
             guild = discord.Object(id=GUILD_ID)
             self.tree.copy_global_to(guild=guild)
@@ -88,7 +75,6 @@ class MyBot(commands.Bot):
                 await robust_log(self, "🌙 Daily reminder loop started.")
 
     async def on_command_error(self, ctx, error):
-        # Catch uncaught exceptions globally
         tb = traceback.format_exc()
         await robust_log(self, f"[UNHANDLED COMMAND ERROR] {error}\n{tb}")
 
@@ -104,6 +90,6 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 # -----------------------
-# Change Tracking
+# CHANGE LOG
 # -----------------------
-# [2025-09-20 12:30] v1.2.3b5 - Added version comment and change tracking comment
+# [2025-09-20 12:50] v1.2.4b6 - Updated safe_send, onboarding flow, daily reminders loop, and version_tracker integration across all cogs

@@ -1,25 +1,25 @@
 # GBPBot - reminders.py
-# Version: 1.0.0 build 1
+# Version: 1.0.1 build 2
 # Last Updated: 2025-09-20
 # Notes: Handles all region-based daily reminders, Sabbat & full moon buttons, random quotes/journal prompts
 #        Integrated safe_send and robust logging. Added version_tracker integration.
 
-import discord  # line 1
-from discord.ext import commands, tasks  # line 2
-import datetime  # line 3
-import ephem  # line 4
-from zoneinfo import ZoneInfo  # line 5
-import random  # line 6
+import discord
+from discord.ext import commands, tasks
+import datetime
+import ephem
+from zoneinfo import ZoneInfo
+import random
 
-from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, get_all_subscribed_users  # line 7
-from utils.logger import robust_log  # centralized logger import  # line 8
-from utils.safe_send import safe_send  # line 9
-from version_tracker import GBPBot_version, file_versions, get_file_version  # version tracker
+from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, get_all_subscribed_users
+from utils.logger import robust_log
+from utils.safe_send import safe_send
+from version_tracker import GBPBot_version, get_file_version
 
 # -----------------------
 # Config
 # -----------------------
-REGIONS = {  #line22
+REGIONS = {
     "North America": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🗽", "color": 0x2ecc71},
     "South America": {"name": "South America", "role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
     "Europe": {"name": "Europe", "role_id": 1416439011517534288, "tz": "Europe/London", "emoji": "🍀", "color": 0x3498db},
@@ -27,7 +27,7 @@ REGIONS = {  #line22
     "Oceania & Asia": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
 }
 
-SABBATS = { #line30
+SABBATS = {
     "Imbolc": (2, 1),
     "Ostara": (3, 20),
     "Beltane": (5, 1),
@@ -88,7 +88,7 @@ class ReminderButtons(discord.ui.View):
             name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
             await safe_send(interaction, f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True)
         except Exception as e:
-            await robust_log(interaction.client, f"[ERROR] Failed Next Sabbat button", e)
+            await robust_log(interaction.client, f"[ERROR] Failed Next Sabbat button\n{e}")
             await safe_send(interaction, "⚠️ Could not fetch next Sabbat.", ephemeral=True)
 
     @discord.ui.button(label="Next Full Moon", style=discord.ButtonStyle.secondary)
@@ -101,7 +101,7 @@ class ReminderButtons(discord.ui.View):
             phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
             await safe_send(interaction, f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True)
         except Exception as e:
-            await robust_log(interaction.client, f"[ERROR] Failed Next Full Moon button", e)
+            await robust_log(interaction.client, f"[ERROR] Failed Next Full Moon button\n{e}")
             await safe_send(interaction, "⚠️ Could not fetch next full moon.", ephemeral=True)
 
     @discord.ui.button(label="Random Quote / Prompt", style=discord.ButtonStyle.success)
@@ -114,7 +114,7 @@ class ReminderButtons(discord.ui.View):
             content = f"💫 Quote: {quote}\n📝 Journal Prompt: {prompt}"
             await safe_send(interaction, content, ephemeral=True)
         except Exception as e:
-            await robust_log(interaction.client, "[ERROR] Failed Random Quote/Prompt button", e)
+            await robust_log(interaction.client, f"[ERROR] Failed Random Quote/Prompt button\n{e}")
             await safe_send(interaction, "⚠️ Could not fetch quote or journal prompt.", ephemeral=True)
 
 # -----------------------
@@ -134,7 +134,7 @@ class RemindersCog(commands.Cog):
                 try:
                     user = await self.bot.fetch_user(user_id)
                 except Exception as e:
-                    await robust_log(self.bot, f"Failed to fetch user {user_id}", e)
+                    await robust_log(self.bot, f"Failed to fetch user {user_id}\n{e}")
                     return
 
             region_data = REGIONS.get(prefs["region"])
@@ -168,7 +168,7 @@ class RemindersCog(commands.Cog):
             await robust_log(self.bot, f"Sent daily reminder to {user.id}")
 
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] Sending daily reminder to {user_id}", e)
+            await robust_log(self.bot, f"[ERROR] Sending daily reminder to {user_id}\n{e}")
 
     @tasks.loop(minutes=1)
     async def daily_loop(self):
@@ -185,7 +185,7 @@ class RemindersCog(commands.Cog):
                 }
                 await self.send_daily_reminder(user_id, prefs)
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] Failed running daily loop", e)
+            await robust_log(self.bot, f"[ERROR] Failed running daily loop\n{e}")
 
     @daily_loop.before_loop
     async def before_daily_loop(self):
@@ -202,6 +202,5 @@ async def setup(bot):
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20] v1.0.0b1 - Added version_tracker integration
-# [2025-09-20] Added robust logging and safe_send to all reminder and button interactions
-# [2025-09-20] Next Sabbat, Next Full Moon, Random Quote/Prompt buttons fully implemented
+# [2025-09-20 12:50] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop
+# [2025-09-20 12:45] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging

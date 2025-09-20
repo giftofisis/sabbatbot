@@ -1,3 +1,8 @@
+# GBPBot - commands.py
+# Version: 1.1.0 build 1
+# Last Updated: 2025-09-20
+# Notes: All slash commands and helper commands updated with safe_send, robust logging, and file version tracking
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -14,8 +19,8 @@ from db import (
 )
 from cogs.reminders import REGIONS, ReminderButtons
 from cogs.onboarding import OnboardingDM
-from utils.logger import robust_log  # absolute import from root utils
-from version_tracker import GBPBot_version, file_versions, get_file_version
+from utils.logger import robust_log
+from version_tracker import GBPBot_version, get_file_version
 
 
 class CommandsCog(commands.Cog):
@@ -37,7 +42,7 @@ class CommandsCog(commands.Cog):
                 synced = await self.bot.tree.sync(guild=guild)
                 await robust_log(self.bot, f"[INFO] Synced {len(synced)} commands to guild {guild_id}")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] Failed to sync commands", e)
+            await robust_log(self.bot, "[ERROR] Failed to sync commands\n{e}")
 
     # -----------------------
     # /reminder Command
@@ -70,7 +75,7 @@ class CommandsCog(commands.Cog):
             )
             await safe_send(interaction, embed=embed, view=ReminderButtons(region_data))
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /reminder command failed", e)
+            await robust_log(self.bot, "[ERROR] /reminder command failed\n{e}")
             await safe_send(interaction, "⚠️ Could not send your reminder. Try again later.")
 
     # -----------------------
@@ -83,7 +88,7 @@ class CommandsCog(commands.Cog):
             await add_quote(quote, bot=self.bot)
             await safe_send(interaction, "✅ Quote submitted successfully.")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /submit_quote failed", e)
+            await robust_log(self.bot, "[ERROR] /submit_quote failed\n{e}")
             await safe_send(interaction, "⚠️ Could not submit quote. Try again later.")
 
     # -----------------------
@@ -96,7 +101,7 @@ class CommandsCog(commands.Cog):
             await add_journal_prompt(prompt, bot=self.bot)
             await safe_send(interaction, "✅ Journal prompt submitted successfully.")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /submit_journal failed", e)
+            await robust_log(self.bot, "[ERROR] /submit_journal failed\n{e}")
             await safe_send(interaction, "⚠️ Could not submit journal prompt. Try again later.")
 
     # -----------------------
@@ -108,7 +113,7 @@ class CommandsCog(commands.Cog):
             await set_subscription(interaction.user.id, False, bot=self.bot)
             await safe_send(interaction, "❌ You have unsubscribed from daily reminders.")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /unsubscribe failed", e)
+            await robust_log(self.bot, "[ERROR] /unsubscribe failed\n{e}")
             await safe_send(interaction, "⚠️ Could not update subscription. Try again later.")
 
     # -----------------------
@@ -130,7 +135,7 @@ class CommandsCog(commands.Cog):
             await safe_send(interaction.user, embed=embed)
             await safe_send(interaction, "✅ Help sent to your DMs.")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /help command failed", e)
+            await robust_log(self.bot, "[ERROR] /help command failed\n{e}")
             await safe_send(interaction, "⚠️ Could not send help. Try again later.")
 
     # -----------------------
@@ -155,7 +160,7 @@ class CommandsCog(commands.Cog):
             embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded) or "None", inline=False)
             await safe_send(interaction, embed=embed)
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /onboarding_status failed", e)
+            await robust_log(self.bot, "[ERROR] /onboarding_status failed\n{e}")
             await safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
 
     # -----------------------
@@ -167,7 +172,7 @@ class CommandsCog(commands.Cog):
             await clear_user_preferences(interaction.user.id, bot=self.bot)
             await safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /clear_onboarding failed", e)
+            await robust_log(self.bot, "[ERROR] /clear_onboarding failed\n{e}")
             await safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
 
     # -----------------------
@@ -180,7 +185,7 @@ class CommandsCog(commands.Cog):
             file_ver = get_file_version("commands.py")
             await safe_send(interaction, f"🤖 Bot Version: **{version_str}**\n📄 commands.py Version: **{file_ver}**")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /version command failed", e)
+            await robust_log(self.bot, "[ERROR] /version command failed\n{e}")
 
     # -----------------------
     # /test Command
@@ -190,11 +195,16 @@ class CommandsCog(commands.Cog):
         try:
             await safe_send(interaction, "✅ Test successful! Bot is responsive.")
         except Exception as e:
-            await robust_log(self.bot, "[ERROR] /test command failed", e)
+            await robust_log(self.bot, "[ERROR] /test command failed\n{e}")
 
 
 # -----------------------
 # Cog Setup
 # -----------------------
 async def setup(bot):
-    await bot.add_cog(CommandsCog(bot))#endline215
+    await bot.add_cog(CommandsCog(bot))
+
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-20 13:10] v1.1.0b1 - Added safe_send to all commands, robust logging, and file version display for /version
