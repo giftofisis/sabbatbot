@@ -53,21 +53,6 @@ class CommandsCog(commands.Cog):
             await robust_log(self.bot, "[ERROR] Failed safe_send", e)
 
     # -----------------------
-    # /onboard Command
-    # -----------------------
-    @app_commands.command(name="onboard", description="Start onboarding")
-    async def onboard(self, interaction: discord.Interaction):
-        try:
-            await self.safe_send(interaction, "📬 Check your DMs! Starting onboarding...")
-            onboarding = OnboardingDM(self.bot, interaction.user)
-            await onboarding.start()
-        except discord.Forbidden:
-            await self.safe_send(interaction, "⚠️ I couldn't DM you. Please enable DMs from server members.")
-        except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /onboard failed for {interaction.user.id}", e)
-            await self.safe_send(interaction, "⚠️ Failed to start onboarding.")
-
-    # -----------------------
     # /reminder Command
     # -----------------------
     @app_commands.command(name="reminder", description="Get an interactive reminder")
