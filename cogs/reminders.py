@@ -189,5 +189,5 @@ class RemindersCog(commands.Cog):  # line 107
 # Setup
 # -----------------------
 async def setup(bot):  # line 180
-    await bot.add_cog(RemindersCog(bot))  # line 181
-#endline181
+    await bot.add_cog(RemindersCog(bot))  # endline192
+

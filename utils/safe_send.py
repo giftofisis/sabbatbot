@@ -1,5 +1,5 @@
 import traceback
-from discord import MISSING
+from discord import MISSING, Interaction
 from utils.logger import robust_log
 
 async def safe_send(user_or_interaction, content=None, embed=None, view=None, ephemeral=False):
@@ -10,19 +10,17 @@ async def safe_send(user_or_interaction, content=None, embed=None, view=None, ep
     - Logs all exceptions without crashing.
     """
     try:
-        # Check if the interaction has a response available
-        if hasattr(user_or_interaction, "response") and user_or_interaction.response:
-            # Only use the view if it exists and is not finished
-            if view is not None and not view.is_finished():
-                await user_or_interaction.response.send_message(
-                    content=content, embed=embed, view=view, ephemeral=ephemeral
-                )
+        # Interaction handling
+        if isinstance(user_or_interaction, Interaction):
+            if not user_or_interaction.response.is_done():
+                # Interaction not responded yet
+                await user_or_interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
             else:
-                await user_or_interaction.response.send_message(
-                    content=content, embed=embed, ephemeral=ephemeral
-                )
+                # Already responded, use followup
+                await user_or_interaction.followup.send(content=content, embed=embed, view=view, ephemeral=ephemeral)
         else:
-            # fallback to sending directly to user (DM) or any messageable
+            # Direct DM or channel
             await user_or_interaction.send(content=content, embed=embed, view=view)
     except Exception as e:
-        robust_log(f"Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}")#endline28
+        client_info = getattr(user_or_interaction, "client", None)
+        await robust_log(client_info, f"[ERROR] Failed safe_send\nException: {e}\nTraceback:\n{traceback.format_exc()}")  #endline26
