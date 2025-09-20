@@ -1,9 +1,9 @@
 # GBPBot - reminders.py
-# Version: 1.0.1 build 3
+# Version: 1.0.1 build 4
 # Last Updated: 2025-09-20
-# Notes: Handles all region-based daily reminders, Sabbat & full moon buttons, random quotes/journal prompts
-#        Fully integrated safe_send and robust logging with fix for NoneType is_finished error.
-#        Added version_tracker integration.
+# Notes: Handles region-based daily reminders, Sabbat & full moon buttons, random quotes/journal prompts
+#        Fully integrated safe_send and robust logging with fix for NoneType is_finished errors.
+#        Added version_tracker integration and ephem.Moon fixes.
 
 import discord
 from discord.ext import commands, tasks
@@ -54,7 +54,7 @@ def next_full_moon_for_tz(tz_name: str):
     return fm_utc.astimezone(ZoneInfo(tz_name)).date()
 
 def moon_phase_emoji(date: datetime.date) -> str:
-    moon = ephem.Moon(date)
+    moon = ephem.Moon(ephem.Date(date))  # Ensure ephem.Date type
     phase = moon.phase
     if phase < 10:
         return "🌑"
@@ -87,10 +87,10 @@ class ReminderButtons(discord.ui.View):
             if not upcoming:
                 upcoming = list(sabbats.items())
             name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
-            await safe_send(interaction, f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True)
+            await safe_send(interaction, f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True, view=None)
         except Exception as e:
             await robust_log(interaction.client, f"[ERROR] Failed Next Sabbat button\n{e}")
-            await safe_send(interaction, "⚠️ Could not fetch next Sabbat.", ephemeral=True)
+            await safe_send(interaction, "⚠️ Could not fetch next Sabbat.", ephemeral=True, view=None)
 
     @discord.ui.button(label="Next Full Moon", style=discord.ButtonStyle.secondary)
     async def next_moon(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -100,10 +100,10 @@ class ReminderButtons(discord.ui.View):
             region_name = self.region_data["name"]
             fm = next_full_moon_for_tz(tz)
             phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
-            await safe_send(interaction, f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True)
+            await safe_send(interaction, f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True, view=None)
         except Exception as e:
             await robust_log(interaction.client, f"[ERROR] Failed Next Full Moon button\n{e}")
-            await safe_send(interaction, "⚠️ Could not fetch next full moon.", ephemeral=True)
+            await safe_send(interaction, "⚠️ Could not fetch next full moon.", ephemeral=True, view=None)
 
     @discord.ui.button(label="Random Quote / Prompt", style=discord.ButtonStyle.success)
     async def random_quote_prompt(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -113,10 +113,10 @@ class ReminderButtons(discord.ui.View):
             quote = random.choice(quote_list) if quote_list else "No quotes available."
             prompt = random.choice(prompt_list) if prompt_list else "No journal prompts available."
             content = f"💫 Quote: {quote}\n📝 Journal Prompt: {prompt}"
-            await safe_send(interaction, content, ephemeral=True)
+            await safe_send(interaction, content, ephemeral=True, view=None)
         except Exception as e:
             await robust_log(interaction.client, f"[ERROR] Failed Random Quote/Prompt button\n{e}")
-            await safe_send(interaction, "⚠️ Could not fetch quote or journal prompt.", ephemeral=True)
+            await safe_send(interaction, "⚠️ Could not fetch quote or journal prompt.", ephemeral=True, view=None)
 
 # -----------------------
 # Reminders Cog
@@ -176,15 +176,18 @@ class RemindersCog(commands.Cog):
         try:
             users = await get_all_subscribed_users()
             for row in users:
-                user_id, region, zodiac, hour, days, subscribed = row
-                prefs = {
-                    "region": region,
-                    "zodiac": zodiac,
-                    "hour": hour,
-                    "days": days.split(","),
-                    "subscribed": bool(subscribed)
-                }
-                await self.send_daily_reminder(user_id, prefs)
+                try:
+                    user_id, region, zodiac, hour, days, subscribed = row
+                    prefs = {
+                        "region": region,
+                        "zodiac": zodiac,
+                        "hour": hour,
+                        "days": days.split(","),
+                        "subscribed": bool(subscribed)
+                    }
+                    await self.send_daily_reminder(user_id, prefs)
+                except Exception as e:
+                    await robust_log(self.bot, f"[ERROR] Failed sending reminder to user {row[0]}\n{e}")
         except Exception as e:
             await robust_log(self.bot, f"[ERROR] Failed running daily loop\n{e}")
 
@@ -205,4 +208,5 @@ async def setup(bot):
 # -----------------------
 # [2025-09-20 12:50] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop
 # [2025-09-20 13:12] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends
+# [2025-09-20 13:25] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls
 # [2025-09-20 12:45] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging

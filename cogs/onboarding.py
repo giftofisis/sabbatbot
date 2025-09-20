@@ -1,7 +1,7 @@
 # GBPBot - onboarding.py
-# Version: 1.0.1 build 3
+# Version: 1.0.2 build 2
 # Last Updated: 2025-09-20
-# Notes: Multi-step DM onboarding with safe_send, cancel support, robust logging, fixed view is_finished bug
+# Notes: Fully robust DM onboarding with safe_send, cancel support, modern button callbacks, fixed view is_finished bug, fixed cancel callbacks
 
 import discord
 from discord.ext import commands
@@ -9,7 +9,7 @@ from discord import app_commands
 from utils.safe_send import safe_send
 from db import save_user_preferences
 from utils.logger import robust_log
-from version_tracker import GBPBot_version, file_versions, get_file_version  # version tracker
+from version_tracker import GBPBot_version, get_file_version
 import traceback
 
 # -----------------------
@@ -24,8 +24,9 @@ ZODIAC_SIGNS = [
 # -----------------------
 # Onboarding DM Flow with Buttons
 # -----------------------
-class OnboardingDM:
+class OnboardingDM(discord.ui.View):
     def __init__(self, bot, user):
+        super().__init__(timeout=None)
         self.bot = bot
         self.user = user
         self.region = None
@@ -34,13 +35,79 @@ class OnboardingDM:
 
     async def start(self):
         try:
-            dm = self.user.dm_channel or await self.user.create_dm()
-            await safe_send(dm, "🚀 Welcome! Let's set up your preferences. Click the buttons to proceed.")
+            await safe_send(self.user, "🚀 Welcome! Let's set up your preferences. Click the buttons to proceed.", view=None)
+            await self.select_region()
+        except Exception:
+            tb = traceback.format_exc()
+            await robust_log(self.bot, f"[ERROR] Onboarding start failed for {self.user.id}\n{tb}")
 
-            await self.select_region(dm)
-            await self.select_zodiac(dm)
-            await self.ask_subscription(dm)
+    async def select_region(self):
+        view = discord.ui.View(timeout=None)
+        for region in REGIONS:
+            button = discord.ui.Button(label=region, style=discord.ButtonStyle.primary)
+            async def region_callback(interaction: discord.Interaction, r=region):
+                self.region = r
+                await safe_send(interaction, f"✅ Region set to **{r}**", ephemeral=True, view=None)
+                self.clear_items()
+                await self.select_zodiac()
+            button.callback = region_callback
+            view.add_item(button)
 
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        async def cancel_callback(interaction: discord.Interaction):
+            await self.cancel(interaction)
+        cancel_btn.callback = cancel_callback
+        view.add_item(cancel_btn)
+
+        await safe_send(self.user, "🌎 Select your **Region**:", view=view)
+
+    async def select_zodiac(self):
+        view = discord.ui.View(timeout=None)
+        for sign in ZODIAC_SIGNS:
+            button = discord.ui.Button(label=sign, style=discord.ButtonStyle.secondary)
+            async def zodiac_callback(interaction: discord.Interaction, s=sign):
+                self.zodiac = s
+                await safe_send(interaction, f"✅ Zodiac set to **{s}**", ephemeral=True, view=None)
+                self.clear_items()
+                await self.ask_subscription()
+            button.callback = zodiac_callback
+            view.add_item(button)
+
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        async def cancel_callback(interaction: discord.Interaction):
+            await self.cancel(interaction)
+        cancel_btn.callback = cancel_callback
+        view.add_item(cancel_btn)
+
+        await safe_send(self.user, "🔮 Select your **Zodiac Sign**:", view=view)
+
+    async def ask_subscription(self):
+        view = discord.ui.View(timeout=None)
+
+        yes_btn = discord.ui.Button(label="Yes", style=discord.ButtonStyle.success)
+        async def yes_callback(interaction: discord.Interaction):
+            self.subscribe_daily = True
+            await self.complete_onboarding(interaction)
+        yes_btn.callback = yes_callback
+        view.add_item(yes_btn)
+
+        no_btn = discord.ui.Button(label="No", style=discord.ButtonStyle.danger)
+        async def no_callback(interaction: discord.Interaction):
+            self.subscribe_daily = False
+            await self.complete_onboarding(interaction)
+        no_btn.callback = no_callback
+        view.add_item(no_btn)
+
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
+        async def cancel_callback(interaction: discord.Interaction):
+            await self.cancel(interaction)
+        cancel_btn.callback = cancel_callback
+        view.add_item(cancel_btn)
+
+        await safe_send(self.user, "📩 Do you want to receive daily reminders?", view=view)
+
+    async def complete_onboarding(self, interaction: discord.Interaction):
+        try:
             await save_user_preferences(
                 self.user.id,
                 region=self.region,
@@ -48,61 +115,16 @@ class OnboardingDM:
                 daily=self.subscribe_daily,
                 bot=self.bot
             )
-            await safe_send(dm, "🎉 Onboarding complete! Your preferences have been saved.")
-
+            await safe_send(interaction, "🎉 Onboarding complete! Your preferences have been saved.", ephemeral=True, view=None)
+            self.stop()
         except Exception:
             tb = traceback.format_exc()
-            await robust_log(self.bot, f"[ERROR] Onboarding failed for {self.user.id}\n{tb}")
+            await robust_log(self.bot, f"[ERROR] Completing onboarding failed for {self.user.id}\n{tb}")
+            await safe_send(interaction, "⚠️ Failed to save preferences. Try again later.", ephemeral=True, view=None)
 
-    # -----------------------
-    # Step 1: Select Region
-    # -----------------------
-    async def select_region(self, dm):
-        view = discord.ui.View(timeout=None)
-        for region in REGIONS:
-            async def region_callback(interaction, r=region):
-                self.region = r
-                await safe_send(interaction, f"✅ Region set to **{r}**", ephemeral=True)
-                view.stop()
-            view.add_item(discord.ui.Button(label=region, style=discord.ButtonStyle.primary, custom_id=f"region_{region}"))
-            button = view.children[-1]
-            button.callback = region_callback
-        await safe_send(dm, "Select your **Region**:", view=view)
-        await view.wait()
-
-    # -----------------------
-    # Step 2: Select Zodiac
-    # -----------------------
-    async def select_zodiac(self, dm):
-        view = discord.ui.View(timeout=None)
-        for sign in ZODIAC_SIGNS:
-            async def zodiac_callback(interaction, s=sign):
-                self.zodiac = s
-                await safe_send(interaction, f"✅ Zodiac set to **{s}**", ephemeral=True)
-                view.stop()
-            view.add_item(discord.ui.Button(label=sign, style=discord.ButtonStyle.secondary, custom_id=f"zodiac_{sign}"))
-            button = view.children[-1]
-            button.callback = zodiac_callback
-        await safe_send(dm, "Select your **Zodiac Sign**:", view=view)
-        await view.wait()
-
-    # -----------------------
-    # Step 3: Daily Reminder Subscription
-    # -----------------------
-    async def ask_subscription(self, dm):
-        view = discord.ui.View(timeout=None)
-        async def yes_callback(interaction):
-            self.subscribe_daily = True
-            await safe_send(interaction, "✅ You will receive daily reminders.", ephemeral=True)
-            view.stop()
-        async def no_callback(interaction):
-            self.subscribe_daily = False
-            await safe_send(interaction, "❌ You will not receive daily reminders.", ephemeral=True)
-            view.stop()
-        view.add_item(discord.ui.Button(label="Yes", style=discord.ButtonStyle.success, custom_id="daily_yes", callback=yes_callback))
-        view.add_item(discord.ui.Button(label="No", style=discord.ButtonStyle.danger, custom_id="daily_no", callback=no_callback))
-        await safe_send(dm, "Do you want to receive daily reminders?", view=view)
-        await view.wait()
+    async def cancel(self, interaction: discord.Interaction):
+        await safe_send(interaction, "❌ Onboarding cancelled. You can start again with `/onboard`.", ephemeral=True, view=None)
+        self.stop()
 
 # -----------------------
 # Cog
@@ -145,10 +167,6 @@ async def setup(bot):
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 12:45] v1.0.0b1 - Added version_tracker import, version comment, and change tracking
-# [2025-09-20 12:46] Rewritten onboarding flow with interactive buttons:
-#             Region → Zodiac → Daily reminders subscription.
-#             Uses safe_send for all messages. Daily subscription now recorded in DB
-# [2025-09-20 12:54] v1.0.1b1 - Updated safe_send import for v1.0.1b4 compatibility
-# [2025-09-20 12:55] v1.0.1b2 - Confirmed callbacks correctly set for Discord buttons with view.stop()
-# [2025-09-20 13:10] v1.0.1b3 - Integrated robust safe_send fix for NoneType is_finished error in all sends
+# [2025-09-20 13:50] v1.0.2b1 - Updated to modern button callbacks and robust safe_send for NoneType is_finished fix
+# [2025-09-20 13:55] v1.0.2b2 - Added cancel support for all steps and centralized logging
+# [2025-09-20 14:10] v1.0.2b3 - Fixed cancel buttons to be async callbacks to prevent TypeError

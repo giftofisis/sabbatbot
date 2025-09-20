@@ -1,6 +1,6 @@
 # GBPBot - commands.py
 # Version: 1.1.0 build 2
-# Last Updated: 2025-09-20
+# Last Updated: 2025-09-20T13:15:00+01:00 (BST)
 # Notes: All slash commands and helper commands updated with safe_send, robust logging, and file version tracking
 #        Fully integrated safe_send fix for NoneType is_finished errors.
 
@@ -22,7 +22,6 @@ from cogs.reminders import REGIONS, ReminderButtons
 from cogs.onboarding import OnboardingDM
 from utils.logger import robust_log
 from version_tracker import GBPBot_version, get_file_version
-
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -205,8 +204,9 @@ class CommandsCog(commands.Cog):
 async def setup(bot):
     await bot.add_cog(CommandsCog(bot))
 
+
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 13:10] v1.1.0b1 - Added safe_send to all commands, robust logging, and file version display for /version
-# [2025-09-20 13:15] v1.1.0b2 - Fully integrated robust safe_send fix for NoneType is_finished errors in all commands
+# [2025-09-20 13:10 BST] v1.1.0b1 - Added safe_send to all commands, robust logging, and file version display for /version
+# [2025-09-20 13:15 BST] v1.1.0b2 - Fully integrated robust safe_send fix for NoneType is_finished errors in all commands
