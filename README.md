@@ -4,6 +4,16 @@
 GBPBot is a Discord bot designed for community engagement with a mystical, astrology-themed experience. It provides personalized onboarding, daily reminders, interactive region & zodiac features, and journaling prompts.
 
 ---
+## Version History
+
+- v1.0 — Initial reminders cog with basic daily loop and Next Sabbat / Next Full Moon buttons.
+
+- v1.1 — Added safe_send for all interaction responses.
+
+- v1.2 — Added Random Quote button (single button).
+
+- v1.3 — Combined Random Quote + Journal Prompt button with safe_send, fully consistent with bot UX.
+---
 
 ## Features
 
