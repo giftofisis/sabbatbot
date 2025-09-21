@@ -1,5 +1,5 @@
 # GBPBot - version_tracker.py
-# Version: 1.0.2
+# Version: 1.0.3
 # Last Updated: 2025-09-21
 # Notes:
 # - Centralized file version tracking for GBPBot.
@@ -8,6 +8,7 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2025-09-21 16:10 BST] v1.0.3 - Updated onboarding.py and reminders.py to v1.9.2.0; master GBPBot_version now 1.9.2.0
 # [2025-09-21 15:45 BST] v1.0.2 - Updated versions for onboarding.py (1.9.1.0), reminders.py (1.0.1b5), and constants.py (1.0.0)
 # [2025-09-21 15:00 BST] v1.0.1 - Added 'constants.py' to file version tracking.
 # [2025-09-20 12:50 BST] v1.0.0 - Initial creation of version_tracker.py for onboarding, reminders, db, commands, and bot.py
@@ -18,8 +19,8 @@ GBPBot_version = "1.9.2.0"
 FILE_VERSIONS = {
     "bot.py": "1.9.0.0",
     "db.py": "1.0.3 build 1",
-    "onboarding.py": "1.9.1.0",
-    "reminders.py": "1.0.1b5",
+    "onboarding.py": "1.9.2.0",
+    "reminders.py": "1.9.2.0",
     "commands.py": "1.0.2",
     "constants.py": "1.0.0"
 }

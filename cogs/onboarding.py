@@ -69,7 +69,7 @@ class OnboardingDM(discord.ui.View):
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
-        view.add_item(self.create_button("Cancel", discord.ButtonStyle.danger, cancel_callback, emoji="❌"))
+        view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="✖️"))
 
         await safe_send(self.user, "🌎 Select your **Region**:", view=view)
 
@@ -86,7 +86,7 @@ class OnboardingDM(discord.ui.View):
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
-        view.add_item(self.create_button("Cancel", discord.ButtonStyle.danger, cancel_callback, emoji="❌"))
+        view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="❌"))
 
         await safe_send(self.user, "🔮 Select your **Zodiac Sign**:", view=view)
 
@@ -101,7 +101,7 @@ class OnboardingDM(discord.ui.View):
         async def no_callback(interaction: discord.Interaction):
             self.subscribe_daily = False
             await self.complete_onboarding(interaction)
-        view.add_item(self.create_button("No", discord.ButtonStyle.danger, no_callback, emoji="❌"))
+        view.add_item(self.create_button("No", discord.ButtonStyle.secondary, no_callback, emoji="❌"))
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
