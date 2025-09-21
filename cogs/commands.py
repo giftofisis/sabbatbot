@@ -185,14 +185,34 @@ class CommandsCog(commands.Cog):
     # -----------------------
     # /version Command
     # -----------------------
+    from version_tracker import VERSIONS, get_file_version
+
     @app_commands.command(name="version", description="Show the bot's current version")
     async def version(self, interaction: discord.Interaction):
         try:
-            version_str = f"{GBPBot_version['major']}.{GBPBot_version['minor']}.{GBPBot_version['patch']}.{GBPBot_version['build']}"
-            file_ver = get_file_version("commands.py")
-            await safe_send(interaction, f"🤖 Bot Version: **{version_str}**\n📄 commands.py Version: **{file_ver}**")
+            # Bot core version from version_tracker.py
+            bot_version = VERSIONS.get("bot.py", "unknown")
+            
+            # Individual file version example: commands.py
+            commands_version = get_file_version("commands.py") or "unknown"
+
+            # Build a neat response
+            embed = discord.Embed(
+                title="🤖 GBPBot Version Info",
+                color=0x9b59b6
+            )
+            embed.add_field(name="Bot Core Version", value=f"**{bot_version}**", inline=False)
+            embed.add_field(name="Commands Cog Version", value=f"**{commands_version}**", inline=False)
+            
+            # Optional: add all tracked files
+            files_list = "\n".join(f"{f}: {v}" for f, v in VERSIONS.items())
+            embed.add_field(name="All Tracked Files", value=files_list, inline=False)
+            
+            await safe_send(interaction, embed=embed)
         except Exception as e:
             await robust_log(self.bot, f"[ERROR] /version command failed\n{e}")
+            await safe_send(interaction, "⚠️ Could not fetch version info.")
+
 
     # -----------------------
     # /test Command
