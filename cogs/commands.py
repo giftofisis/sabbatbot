@@ -1,13 +1,16 @@
 # GBPBot - commands.py
-# Version: 1.9.0.0
+# Version: 1.9.1.1
 # Last Updated: 2025-09-21
 # Notes:
 # - Slash commands fully use safe_send and robust logging.
 # - Compatible with updated db.py user preferences including 'daily'.
 # - /onboard command removed from this cog (only in onboarding.py).
+# - /version command fully robust using version_tracker.py
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2025-09-21] v1.9.1.1 - Fully updated /version and /test commands; cleaned imports and standardized version usage.
+# [2025-09-21] v1.9.1.0 - Updated /version command to safely display bot and commands versions using version_tracker.py
 # [2025-09-21] v1.9.0.0 - Updated commands to fully support safe_send, logging, and daily flag from DB.
 # [2025-09-20] v1.8.0.0 - Initial slash command setup with /reminder, /submit_quote, /submit_journal, /unsubscribe, /help.
 
@@ -27,9 +30,7 @@ from db import (
 )
 from cogs.reminders import REGIONS, ReminderButtons
 from utils.logger import robust_log
-from version_tracker import GBPBot_version, get_file_version
-
-from version_tracker import VERSIONS as FILE_VERSIONS
+from version_tracker import get_file_version, VERSIONS
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
@@ -157,68 +158,18 @@ class CommandsCog(commands.Cog):
             for member in interaction.guild.members:
                 if member.bot:
                     continue
-                prefs = await get_user_preferences(member.id)
-                if prefs:
-                    onboarded.append(member.name)
-                else:
-                    not_onboarded.append(member.name)
-
-            embed = discord.Embed(title="📝 Onboarding Status", color=0x3498db)
-            embed.add_field(name="✅ Completed Onboarding", value="\n".join(onboarded) or "None", inline=False)
-            embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded) or "None", inline=False)
-            await safe_send(interaction, embed=embed)
-        except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /onboarding_status failed\n{e}")
-            await safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
-
-    # -----------------------
-    # /clear_onboarding Command
-    # -----------------------
-    @app_commands.command(name="clear_onboarding", description="Clear your onboarding status")
-    async def clear_onboarding(self, interaction: discord.Interaction):
-        try:
-            await clear_user_preferences(interaction.user.id, bot=self.bot)
-            await safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
-        except Exception as e:
-            await robust_log(self.bot, f"[ERROR] /clear_onboarding failed\n{e}")
-            await safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
-
-    # -----------------------
-    # /version Command
-    # -----------------------
-    from version_tracker import VERSIONS, get_file_version
-
-    @app_commands.command(name="version", description="Show the bot's current version")
-    async def version(self, interaction: discord.Interaction):
-        try:
-            # Bot core version from version_tracker.py
-            bot_version = VERSIONS.get("bot.py", "unknown")
-            
-            # Individual file version example: commands.py
-            commands_version = get_file_version("commands.py") or "unknown"
-
-            # Build a neat response
-            embed = discord.Embed(
-                title="🤖 GBPBot Version Info",
-                color=0x9b59b6
-            )
-            embed.add_field(name="Bot Core Version", value=f"**{bot_version}**", inline=False)
-            embed.add_field(name="Commands Cog Version", value=f"**{commands_version}**", inline=False)
-            
-            # Optional: add all tracked files
-            files_list = "\n".join(f"{f}: {v}" for f, v in VERSIONS.items())
-            embed.add_field(name="All Tracked Files", value=files_list, inline=False)
 # GBPBot - commands.py
-# Version: 1.9.1.0
+# Version: 1.9.1.1
 # Last Updated: 2025-09-21
 # Notes:
 # - Slash commands fully use safe_send and robust logging.
 # - Compatible with updated db.py user preferences including 'daily'.
 # - /onboard command removed from this cog (only in onboarding.py).
-# - /version command updated to be robust with version_tracker.py
+# - /version command fully robust using version_tracker.py
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2025-09-21] v1.9.1.1 - Fully updated /version and /test commands; cleaned imports and standardized version usage.
 # [2025-09-21] v1.9.1.0 - Updated /version command to safely display bot and commands versions using version_tracker.py
 # [2025-09-21] v1.9.0.0 - Updated commands to fully support safe_send, logging, and daily flag from DB.
 # [2025-09-20] v1.8.0.0 - Initial slash command setup with /reminder, /submit_quote, /submit_journal, /unsubscribe, /help.
@@ -399,18 +350,14 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="version", description="Show the bot's current version")
     async def version(self, interaction: discord.Interaction):
         try:
-            bot_version = FILE_VERSIONS.get("bot.py", "unknown")
-            commands_version = get_file_version("commands.py") or "unknown"
-
-            embed = discord.Embed(
-                title="🤖 GBPBot Version Info",
-                color=0x9b59b6
-            )
+            embed = discord.Embed(title="🤖 GBPBot Version Info", color=0x9b59b6)
+            
+            # Bot core version
+            bot_version = VERSIONS.get("bot.py", "unknown")
             embed.add_field(name="Bot Core Version", value=f"**{bot_version}**", inline=False)
-            embed.add_field(name="Commands Cog Version", value=f"**{commands_version}**", inline=False)
 
-            # All tracked files
-            files_list = "\n".join(f"{f}: {v}" for f, v in FILE_VERSIONS.items())
+            # List all tracked files
+            files_list = "\n".join(f"{f}: {v}" for f, v in VERSIONS.items())
             embed.add_field(name="All Tracked Files", value=files_list, inline=False)
 
             await safe_send(interaction, embed=embed)
@@ -424,5 +371,63 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="test", description="Test if the bot is working")
     async def test(self, interaction: discord.Interaction):
         try:
-            await safe_send(interaction, "✅
-mmand to reference DM onboarding
+            await safe_send(interaction, "✅ Bot is responsive! You can DM `/onboard` to start onboarding.")
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /test command failed\n{e}")
+            await safe_send(interaction, "⚠️ Test failed. Check logs.")                prefs = await get_user_preferences(member.id)
+                if prefs:
+                    onboarded.append(member.name)
+                else:
+                    not_onboarded.append(member.name)
+
+            embed = discord.Embed(title="📝 Onboarding Status", color=0x3498db)
+            embed.add_field(name="✅ Completed Onboarding", value="\n".join(onboarded) or "None", inline=False)
+            embed.add_field(name="❌ Not Completed", value="\n".join(not_onboarded) or "None", inline=False)
+            await safe_send(interaction, embed=embed)
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /onboarding_status failed\n{e}")
+            await safe_send(interaction, "⚠️ Could not fetch onboarding status. Try again later.")
+
+    # -----------------------
+    # /clear_onboarding Command
+    # -----------------------
+    @app_commands.command(name="clear_onboarding", description="Clear your onboarding status")
+    async def clear_onboarding(self, interaction: discord.Interaction):
+        try:
+            await clear_user_preferences(interaction.user.id, bot=self.bot)
+            await safe_send(interaction, "❌ Your onboarding status has been cleared. You can start `/onboard` again.")
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /clear_onboarding failed\n{e}")
+            await safe_send(interaction, "⚠️ Could not clear onboarding status. Try again later.")
+
+    # -----------------------
+    # /version Command
+    # -----------------------
+    @app_commands.command(name="version", description="Show the bot's current version")
+    async def version(self, interaction: discord.Interaction):
+        try:
+            embed = discord.Embed(title="🤖 GBPBot Version Info", color=0x9b59b6)
+            
+            # Bot core version
+            bot_version = VERSIONS.get("bot.py", "unknown")
+            embed.add_field(name="Bot Core Version", value=f"**{bot_version}**", inline=False)
+
+            # List all tracked files
+            files_list = "\n".join(f"{f}: {v}" for f, v in VERSIONS.items())
+            embed.add_field(name="All Tracked Files", value=files_list, inline=False)
+
+            await safe_send(interaction, embed=embed)
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /version command failed\n{e}")
+            await safe_send(interaction, "⚠️ Could not fetch version info.")
+
+    # -----------------------
+    # /test Command
+    # -----------------------
+    @app_commands.command(name="test", description="Test if the bot is working")
+    async def test(self, interaction: discord.Interaction):
+        try:
+            await safe_send(interaction, "✅ Bot is responsive! You can DM `/onboard` to start onboarding.")
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] /test command failed\n{e}")
+            await safe_send(interaction, "⚠️ Test failed. Check logs.") 
