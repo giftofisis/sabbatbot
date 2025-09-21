@@ -1,5 +1,5 @@
 # GBPBot - onboarding.py
-# Version: 1.9.2.0
+# Version: 1.9.2.1
 # Last Updated: 2025-09-21
 # Notes:
 # - Fully robust DM onboarding flow with buttons (region, zodiac, reminders).
@@ -9,6 +9,7 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2025-09-21 16:00 BST] v1.9.2.1 - Fixed loop variable capture for buttons; emojis now display correctly.
 # [2025-09-21 15:30 BST] v1.9.2.0 - Updated onboarding to import REGIONS and ZODIAC_SIGNS from constants.py to stay synced with reminders.py
 # [2025-09-21 14:00 BST] v1.9.1.0 - Added emojis to all onboarding buttons.
 # [2025-09-21 12:00 BST] v1.9.0.0 - Fully integrated safe_send, cancel support, and daily preference handling.
@@ -47,68 +48,64 @@ class OnboardingDM(discord.ui.View):
             tb = traceback.format_exc()
             await robust_log(self.bot, f"[ERROR] Onboarding start failed for {self.user.id}\n{tb}")
 
+    # -----------------------
+    # Button creation helpers
+    # -----------------------
+    def create_button(self, label, style, callback_func, emoji=None):
+        button = discord.ui.Button(label=label, style=style, emoji=emoji)
+        button.callback = callback_func
+        return button
+
     async def select_region(self):
         view = discord.ui.View(timeout=None)
-        for region, info in REGIONS.items():
-            button = discord.ui.Button(label=region, style=discord.ButtonStyle.primary, emoji=info["emoji"])
-            async def region_callback(interaction: discord.Interaction, r=region):
+
+        for region_name, info in REGIONS.items():
+            async def region_callback(interaction: discord.Interaction, r=region_name):
                 self.region = r
                 await safe_send(interaction, f"✅ Region set to **{r}**", ephemeral=True, view=None)
                 self.clear_items()
                 await self.select_zodiac()
-            button.callback = region_callback
-            view.add_item(button)
+            view.add_item(self.create_button(region_name, discord.ButtonStyle.primary, region_callback, emoji=info["emoji"]))
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, emoji="❌")
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
-        cancel_btn.callback = cancel_callback
-        view.add_item(cancel_btn)
+        view.add_item(self.create_button("Cancel", discord.ButtonStyle.danger, cancel_callback, emoji="❌"))
 
         await safe_send(self.user, "🌎 Select your **Region**:", view=view)
 
     async def select_zodiac(self):
         view = discord.ui.View(timeout=None)
+
         for sign, emoji in ZODIAC_SIGNS.items():
-            button = discord.ui.Button(label=sign, style=discord.ButtonStyle.secondary, emoji=emoji)
             async def zodiac_callback(interaction: discord.Interaction, s=sign):
                 self.zodiac = s
                 await safe_send(interaction, f"✅ Zodiac set to **{s}**", ephemeral=True, view=None)
                 self.clear_items()
                 await self.ask_subscription()
-            button.callback = zodiac_callback
-            view.add_item(button)
+            view.add_item(self.create_button(sign, discord.ButtonStyle.secondary, zodiac_callback, emoji=emoji))
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, emoji="❌")
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
-        cancel_btn.callback = cancel_callback
-        view.add_item(cancel_btn)
+        view.add_item(self.create_button("Cancel", discord.ButtonStyle.danger, cancel_callback, emoji="❌"))
 
         await safe_send(self.user, "🔮 Select your **Zodiac Sign**:", view=view)
 
     async def ask_subscription(self):
         view = discord.ui.View(timeout=None)
 
-        yes_btn = discord.ui.Button(label="Yes", style=discord.ButtonStyle.success, emoji="✅")
         async def yes_callback(interaction: discord.Interaction):
             self.subscribe_daily = True
             await self.complete_onboarding(interaction)
-        yes_btn.callback = yes_callback
-        view.add_item(yes_btn)
+        view.add_item(self.create_button("Yes", discord.ButtonStyle.success, yes_callback, emoji="✅"))
 
-        no_btn = discord.ui.Button(label="No", style=discord.ButtonStyle.danger, emoji="❌")
         async def no_callback(interaction: discord.Interaction):
             self.subscribe_daily = False
             await self.complete_onboarding(interaction)
-        no_btn.callback = no_callback
-        view.add_item(no_btn)
+        view.add_item(self.create_button("No", discord.ButtonStyle.danger, no_callback, emoji="❌"))
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="🛑")
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
-        cancel_btn.callback = cancel_callback
-        view.add_item(cancel_btn)
+        view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="🛑"))
 
         await safe_send(self.user, "📩 Do you want to receive daily reminders?", view=view)
 
