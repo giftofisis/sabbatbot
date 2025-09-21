@@ -4,27 +4,30 @@
 GBPBot is a Discord bot designed for community engagement with a mystical, astrology-themed experience. It provides personalized onboarding, daily reminders, interactive region & zodiac features, and journaling prompts.
 
 ---
-## Version History
+# Version History
 
-- v1.0 : Initial reminders cog with basic daily loop and Next Sabbat / Next Full Moon buttons.
+- **v1.0** – Initial reminders cog with basic daily loop and Next Sabbat / Next Full Moon buttons.
 
-- v1.1 : Added safe_send for all interaction responses.
+- **v1.1** – Added `safe_send` handling for all interaction responses to prevent errors.
 
-- v1.2 : Added Random Quote button (single button).
+- **v1.2** – Introduced Random Quote button for users.
 
-- v1.3 : Combined Random Quote + Journal Prompt button with safe_send, fully consistent with bot UX.
+- **v1.3** – Combined Random Quote + Journal Prompt button; fully consistent with bot UX and safe_send handling.
 
-- v1.4 : Added daily column to users table; save_user_preferences and get_user_preferences updated to handle daily preference.
+- **v1.4** – Added `daily` column to users table; updated `save_user_preferences` and `get_user_preferences` to handle daily preference.
 
-- v1.5 : Automatic ALTER TABLE to add daily if missing; backward-compatible with set_user_preferences.
+- **v1.5** – Automatic `ALTER TABLE` to add `daily` if missing; backward-compatible with `set_user_preferences`.
 
-- v1.6 : Minor fixes for async DB operations and exception logging.
+- **v1.6** – Minor fixes for async DB operations and improved exception logging.
 
-- v1.7 : Updated daily_loop to unpack 6 values from get_all_subscribed_users, added prefs["daily"] check to send reminders only when enabled.
+- **v1.7** – Updated `daily_loop` to unpack 6 values from `get_all_subscribed_users`; added `prefs["daily"]` check to send reminders only when enabled.
 
-- v1.8 : Fully robust safe_send handling across all buttons and daily loop; fixed NoneType is_finished errors.
+- **v1.8** – Fully robust `safe_send` handling across all buttons and daily loop; fixed `NoneType is_finished` errors.
 
-- v1.9 :Fixed ephem.Moon input type; ensured view=None in all safe_send calls.
+- **v1.9** – Fixed `ephem.Moon` input type; ensured `view=None` in all `safe_send` calls.
+
+- **v1.10** – Added hemisphere-aware sabbat reminders; daily loop now includes moon phase emoji; updated `constants.py` with `hemisphere` field and `SABBATS_HEMISPHERES` dict; fully integrated with safe_send and robust logging.
+
 ---
 
 ## Features
