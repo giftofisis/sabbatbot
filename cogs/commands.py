@@ -29,6 +29,7 @@ from cogs.reminders import REGIONS, ReminderButtons
 from utils.logger import robust_log
 from version_tracker import GBPBot_version, get_file_version
 
+from version_tracker import VERSIONS as FILE_VERSIONS
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot):
