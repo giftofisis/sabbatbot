@@ -6,13 +6,25 @@ GBPBot is a Discord bot designed for community engagement with a mystical, astro
 ---
 ## Version History
 
-- v1.0 — Initial reminders cog with basic daily loop and Next Sabbat / Next Full Moon buttons.
+- v1.0 : Initial reminders cog with basic daily loop and Next Sabbat / Next Full Moon buttons.
 
-- v1.1 — Added safe_send for all interaction responses.
+- v1.1 : Added safe_send for all interaction responses.
 
-- v1.2 — Added Random Quote button (single button).
+- v1.2 : Added Random Quote button (single button).
 
-- v1.3 — Combined Random Quote + Journal Prompt button with safe_send, fully consistent with bot UX.
+- v1.3 : Combined Random Quote + Journal Prompt button with safe_send, fully consistent with bot UX.
+
+- v1.4 : Added daily column to users table; save_user_preferences and get_user_preferences updated to handle daily preference.
+
+- v1.5 : Automatic ALTER TABLE to add daily if missing; backward-compatible with set_user_preferences.
+
+- v1.6 : Minor fixes for async DB operations and exception logging.
+
+- v1.7 : Updated daily_loop to unpack 6 values from get_all_subscribed_users, added prefs["daily"] check to send reminders only when enabled.
+
+- v1.8 : Fully robust safe_send handling across all buttons and daily loop; fixed NoneType is_finished errors.
+
+- v1.9 :Fixed ephem.Moon input type; ensured view=None in all safe_send calls.
 ---
 
 ## Features
