@@ -28,7 +28,7 @@ from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, ge
 from utils.logger import robust_log
 from utils.safe_send import safe_send
 from version_tracker import GBPBot_version, get_file_version
-from constants import REGIONS, SABBATS
+from utils.constants import REGIONS, SABBATS
 
 # -----------------------
 # Helpers

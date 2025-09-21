@@ -21,7 +21,7 @@ from utils.safe_send import safe_send
 from db import save_user_preferences
 from utils.logger import robust_log, LOG_CHANNEL_ID
 from version_tracker import GBPBot_version, get_file_version
-from constants import REGIONS, ZODIAC_SIGNS
+from utils.constants import REGIONS, ZODIAC_SIGNS
 import traceback
 
 # -----------------------
