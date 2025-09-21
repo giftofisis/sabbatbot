@@ -21,7 +21,7 @@ import traceback
 
 from db import init_db as db_init
 from utils.logger import robust_log
-from version_tracker import GBPBot_version, get_file_version
+from version_tracker import VERSIONS, get_file_version
 
 # -----------------------
 # Environment Variables
@@ -42,6 +42,7 @@ intents.message_content = True
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
+        self.bot_version = VERSIONS.get("bot.py", "unknown")  # Expose core bot version
 
     async def setup_hook(self):
         # Initialize database
@@ -56,10 +57,9 @@ class MyBot(commands.Bot):
         for cog in ["cogs.onboarding", "cogs.reminders", "cogs.commands"]:
             try:
                 await self.load_extension(cog)
-                await robust_log(
-                    self,
-                    f"✅ Loaded cog {cog} | version {get_file_version(cog.split('.')[-1] + '.py')}"
-                )
+                cog_file = cog.split('.')[-1] + ".py"
+                version = VERSIONS.get(cog_file, get_file_version(cog_file))
+                await robust_log(self, f"✅ Loaded cog {cog} | version {version}")
             except Exception:
                 tb = traceback.format_exc()
                 await robust_log(self, f"[ERROR] Failed to load cog {cog}\n{tb}")
@@ -73,6 +73,9 @@ class MyBot(commands.Bot):
         except Exception:
             tb = traceback.format_exc()
             await robust_log(self, f"[ERROR] Failed to sync slash commands\n{tb}")
+
+        # Log core bot version
+        await robust_log(self, f"🤖 GBPBot core version: {self.bot_version}")
 
     async def on_ready(self):
         await robust_log(self, f"🤖 {self.user} is online and ready!")
@@ -98,4 +101,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
