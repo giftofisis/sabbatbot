@@ -24,6 +24,9 @@ FILE_VERSIONS = {
     "constants.py": "1.0.0"
 }
 
+# Alias for backward compatibility
+file_versions = FILE_VERSIONS
+
 def get_file_version(filename: str) -> str:
     """
     Returns the current version of a core GBPBot file.
