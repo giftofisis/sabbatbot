@@ -1,21 +1,15 @@
 # GBPBot - reminders.py
-# Version: 1.9.2.0
+# Version: 1.10.0
 # Last Updated: 2025-09-21
 # Notes:
-# - Fully synced with onboarding.py using constants.py for regions, emojis, and sabbats.
-# - Daily loop respects 'daily' flag from DB.
-# - Robust safe_send handling across all buttons and loops.
-# - Fixed ephem.Moon input type; ensured view=None in safe_send.
+# - Added hemisphere-aware sabbat reminder system.
+# - Daily loop respects 'daily' flag from DB and now includes moon phase emoji.
+# - Robust safe_send handling across all buttons, loops, and sabbat notifications.
 # - Compatible with updated db.py get_all_subscribed_users.
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21 15:45 BST] v1.9.2.0 - Synced with constants.py; regions, emojis, sabbats now imported from constants.
-# [2025-09-21 11:42 BST] v1.0.1b5 - Updated daily_loop to use daily flag from DB and unpack correct values.
-# [2025-09-20 13:25 BST] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls.
-# [2025-09-20 13:12 BST] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends.
-# [2025-09-20 12:50 BST] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop.
-# [2025-09-20 12:45 BST] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging.
+# [2025-09-21 18:00 BST] v1.10.0 - Added hemisphere-aware sabbat reminders for DMs and optional channel posts.
 
 import discord
 from discord.ext import commands, tasks
@@ -28,16 +22,16 @@ from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, ge
 from utils.logger import robust_log
 from utils.safe_send import safe_send
 from version_tracker import GBPBot_version, get_file_version
-from utils.constants import REGIONS, SABBATS
+from utils.constants import REGIONS, SABBATS_HEMISPHERES
+
+# Optional: set a channel ID to post sabbat notifications publicly
+SABBAT_CHANNEL_ID = None  # Replace with channel ID if needed
 
 # -----------------------
 # Helpers
 # -----------------------
 def format_date(d: datetime.date) -> str:
     return d.strftime("%-d %B %Y")
-
-def get_sabbat_dates(year: int):
-    return {name: datetime.date(year, m, d) for name, (m, d) in SABBATS.items()}
 
 def next_full_moon_for_tz(tz_name: str):
     now = datetime.datetime.now(ZoneInfo(tz_name))
@@ -58,6 +52,9 @@ def moon_phase_emoji(date: datetime.date) -> str:
     else:
         return "🌑"
 
+def get_sabbat_dates_for_hemisphere(hemisphere: str, year: int):
+    return {name: datetime.date(year, m, d) for name, (m, d) in SABBATS_HEMISPHERES[hemisphere].items()}
+
 # -----------------------
 # Reminder Buttons
 # -----------------------
@@ -72,8 +69,9 @@ class ReminderButtons(discord.ui.View):
             tz = self.region_data["tz"]
             emoji = self.region_data["emoji"]
             region_name = self.region_data["name"]
+            hemisphere = self.region_data.get("hemisphere", "north")
             today = datetime.datetime.now(ZoneInfo(tz)).date()
-            sabbats = get_sabbat_dates(today.year)
+            sabbats = get_sabbat_dates_for_hemisphere(hemisphere, today.year)
             upcoming = [(n, d) for n, d in sabbats.items() if d >= today]
             if not upcoming:
                 upcoming = list(sabbats.items())
@@ -116,6 +114,7 @@ class RemindersCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.daily_loop.start()
+        self.sabbat_loop.start()
 
     async def send_daily_reminder(self, user_id, prefs):
         try:
@@ -143,12 +142,13 @@ class RemindersCog(commands.Cog):
 
             quote_list = await get_all_quotes()
             prompt_list = await get_all_journal_prompts()
+            moon_emoji = moon_phase_emoji(now.date())
 
             embed = discord.Embed(
                 title=f"{region_data['emoji']} Daily Reminder",
                 description=(
                     f"Good morning, {user.name}! 🌞\n"
-                    f"Today is **{format_date(now.date())}**\n"
+                    f"Today is **{format_date(now.date())}** {moon_emoji}\n"
                     f"Region: **{region_data['name']}** | Timezone: **{tz}**\n\n"
                     f"💫 Quote: {random.choice(quote_list)}\n"
                     f"📝 Journal Prompt: {random.choice(prompt_list)}"
@@ -188,19 +188,50 @@ class RemindersCog(commands.Cog):
         await self.bot.wait_until_ready()
         await robust_log(self.bot, "🌙 Daily reminder loop is ready to start.")
 
+    # -----------------------
+    # Sabbat Loop
+    # -----------------------
+    @tasks.loop(minutes=60)
+    async def sabbat_loop(self):
+        try:
+            users = await get_all_subscribed_users()
+            today = datetime.date.today()
+            for row in users:
+                try:
+                    user_id, region, zodiac, hour, days, daily = row
+                    region_data = REGIONS.get(region)
+                    if not region_data:
+                        continue
+                    hemisphere = region_data.get("hemisphere", "north")
+                    sabbats = get_sabbat_dates_for_hemisphere(hemisphere, today.year)
+                    delta_msgs = {7: "in 7 days", 1: "tomorrow", 0: "today!"}
+                    user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+                    for name, date_val in sabbats.items():
+                        delta = (date_val - today).days
+                        if delta in delta_msgs:
+                            if delta == 7:
+                                msg = f"🪐 Upcoming Sabbat ({hemisphere.title()} Hemisphere): **{name}** {delta_msgs[delta]}"
+                            elif delta == 1:
+                                msg = f"🌿 **{name}** is tomorrow! ({hemisphere.title()} Hemisphere Sabbat)"
+                            else:
+                                msg = f"🔥 Happy **{name}**! Today is the Sabbat in the {hemisphere.title()} Hemisphere 🔥"
+                            await safe_send(user, msg)
+                            if SABBAT_CHANNEL_ID:
+                                channel = self.bot.get_channel(SABBAT_CHANNEL_ID) or await self.bot.fetch_channel(SABBAT_CHANNEL_ID)
+                                await safe_send(channel, msg)
+                except Exception as e:
+                    await robust_log(self.bot, f"[ERROR] Sabbat reminder for user {row[0]}\n{e}")
+        except Exception as e:
+            await robust_log(self.bot, f"[ERROR] Sabbat loop failed\n{e}")
+
+    @sabbat_loop.before_loop
+    async def before_sabbat_loop(self):
+        await self.bot.wait_until_ready()
+        await robust_log(self.bot, "🌙 Sabbat reminder loop is ready to start.")
+
 # -----------------------
 # Setup
 # -----------------------
 async def setup(bot):
     await bot.add_cog(RemindersCog(bot))
     await robust_log(bot, f"✅ RemindersCog loaded | version {get_file_version('reminders.py')}")
-
-# -----------------------
-# CHANGE LOG
-# -----------------------
-# [2025-09-21 15:45 BST] v1.9.2.0 - Pulled regions, emojis, and SABBATS from constants.py to stay synced with onboarding.py
-# [2025-09-21 11:42 BST] v1.0.1b5 - Daily loop uses 'daily' flag and unpacks 6 values from DB
-# [2025-09-20 13:25 BST] v1.0.1b4 - Fixed ephem.Moon input type; ensured view=None in safe_send
-# [2025-09-20 13:12 BST] v1.0.1b3 - Fully integrated robust safe_send fix
-# [2025-09-20 12:50 BST] v1.0.1b2 - Updated safe_send calls and logging
-# [2025-09-20 12:45 BST] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging

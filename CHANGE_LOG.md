@@ -1,5 +1,12 @@
 # GBPBot - MASTER CHANGE LOG
 # -----------------------
+# [2025-09-21 18:00 BST] v1.10.0
+# - Added hemisphere-aware sabbat reminders in DMs (north/south).
+# - Optional channel-wide sabbat notifications via SABBAT_CHANNEL_ID.
+# - Daily loop now includes moon phase emoji.
+# - Fully integrated with safe_send and robust logging.
+# - Updated constants.py with hemisphere field for regions and SABBATS_HEMISPHERES dict.
+
 # [2025-09-21 16:10 BST] v1.9.2.0
 # - Onboarding.py fully synced to use constants.py for REGIONS and ZODIAC_SIGNS.
 # - Reminders.py synced to constants.py, uses shared region data for emoji, tz, and color.
