@@ -1,59 +1,42 @@
 # GBPBot - update_versions.py
-# Version: 1.0.0
+# Version: 1.0.2
 # Last Updated: 2025-09-21
 # Notes:
 # - Auto-updates version headers in all core GBPBot files
 # - Updates version_tracker.py with current versions
 # - Auto-increments patch number by default
-# - Can be extended for minor/major version bumps
+# - Adds a CHANGE LOG entry in each file when version changes
+# - Automatically tracks all .py files in root, cogs/, and utils/
 
 # CHANGE LOG
 # -----------------------
-# [2025-09-21] v1.0.0
-# - Initial version of the update_versions script
-# - Reads version from file headers
-# - Updates file headers and version_tracker.py
-# - Auto-bumps patch version
+# [2025-09-21] v1.0.2
+# - Added automatic tracking for utils/ folder
+# - Maintains auto CHANGE LOG entries in each file
+# - Fully compatible with Railway deploys
 
 import re
 import os
+from datetime import datetime
 
 # --- CONFIG ---
-FILES = [
-    "bot.py",
-    "db.py",
-    "onboarding.py",
-    "comm
-
-
-import re
-import os
-
-# --- CONFIG ---
-FILES = [
-    "bot.py",
-    "db.py",
-    "onboarding.py",
-    "commands.py",
-    "reminders.py",
-    "logger.py"
-]
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+COGS_DIR = os.path.join(ROOT_DIR, "cogs")      # cogs folder
+UTILS_DIR = os.path.join(ROOT_DIR, "utils")    # utils folder
 VERSION_HEADER_PATTERN = re.compile(r"(# Version:\s*)([\d\.]+)")
+CHANGELOG_PATTERN = re.compile(r"# CHANGE LOG")
 VERSION_TRACKER_FILE = "version_tracker.py"
 
 # --- HELPER FUNCTIONS ---
 def parse_version(version_str):
-    """Convert version string 'x.y.z' to list of ints."""
     return [int(x) for x in version_str.split(".")]
 
 def bump_patch(version_str):
-    """Increment the patch version (last digit)."""
     parts = parse_version(version_str)
     parts[-1] += 1
     return ".".join(str(x) for x in parts)
 
 def get_file_version(file_path):
-    """Extract the version from a file header."""
     if not os.path.exists(file_path):
         return "0.0.1"
     with open(file_path, "r", encoding="utf-8") as f:
@@ -64,25 +47,34 @@ def get_file_version(file_path):
     return "0.0.1"
 
 def update_file_version(file_path, new_version):
-    """Update the version header in the file, or add it if missing."""
     lines = []
     found = False
+    changelog_found = False
+    today = datetime.now().strftime("%Y-%m-%d")
+    
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 if VERSION_HEADER_PATTERN.match(line):
                     lines.append(f"# Version: {new_version}\n")
                     found = True
+                elif CHANGELOG_PATTERN.match(line):
+                    lines.append(line)
+                    lines.append(f"# [{today}] v{new_version} - Auto-updated version\n")
+                    changelog_found = True
                 else:
                     lines.append(line)
+    
     if not found:
-        # prepend version header if missing
         lines.insert(0, f"# Version: {new_version}\n")
+    if not changelog_found:
+        lines.append("\n# CHANGE LOG\n")
+        lines.append(f"# [{today}] v{new_version} - Auto-updated version\n")
+    
     with open(file_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
 
 def update_version_tracker(versions_dict):
-    """Write the VERSIONS dictionary to version_tracker.py"""
     with open(VERSION_TRACKER_FILE, "w", encoding="utf-8") as f:
         f.write("# GBPBot - version_tracker.py\n")
         f.write("# Auto-generated\n")
@@ -92,15 +84,37 @@ def update_version_tracker(versions_dict):
             f.write(f'    "{file}": "{version}",\n')
         f.write("}\n")
 
+def discover_files():
+    py_files = [f for f in os.listdir(ROOT_DIR) if f.endswith(".py")]
+    
+    # Add cogs
+    if os.path.exists(COGS_DIR):
+        for f in os.listdir(COGS_DIR):
+            if f.endswith(".py"):
+                py_files.append(os.path.join("cogs", f))
+    
+    # Add utils
+    if os.path.exists(UTILS_DIR):
+        for f in os.listdir(UTILS_DIR):
+            if f.endswith(".py"):
+                py_files.append(os.path.join("utils", f))
+    
+    return py_files
+
 # --- MAIN SCRIPT ---
 def main(auto_bump=True):
+    files_to_track = discover_files()
     versions = {}
-    for file in FILES:
+    
+    for file in files_to_track:
         current_version = get_file_version(file)
         new_version = bump_patch(current_version) if auto_bump else current_version
         update_file_version(file, new_version)
         versions[file] = new_version
         print(f"{file}: {current_version} -> {new_version}")
+    
+    # Ensure version_tracker.py is updated last
+    versions[VERSION_TRACKER_FILE] = get_file_version(VERSION_TRACKER_FILE)
     update_version_tracker(versions)
     print("version_tracker.py updated!")
 
