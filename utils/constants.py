@@ -7,8 +7,8 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21 14:30 BST] v1.0.0 - Initial creation of constants.py with regions, zodiac signs, emojis, and related references.
-# [2025-09-21 15:50 BST] v1.0.1 - Fixed missing commas in REGIONS, added hemisphere field for all regions.
+# [2025-09-21] v1.0.0 - Initial creation of constants.py with regions, zodiac signs, emojis, and related references.
+# [2025-09-21] v1.0.1 - Fixed missing commas in REGIONS, added hemisphere field for all regions.
 
 # -----------------------
 # Regions

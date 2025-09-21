@@ -8,8 +8,8 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21 12:00 BST] v1.9.0.0 - Updated commands to fully support safe_send, logging, and daily flag from DB.
-# [2025-09-20 11:50 BST] v1.8.0.0 - Initial slash command setup with /reminder, /submit_quote, /submit_journal, /unsubscribe, /help.
+# [2025-09-21] v1.9.0.0 - Updated commands to fully support safe_send, logging, and daily flag from DB.
+# [2025-09-20] v1.8.0.0 - Initial slash command setup with /reminder, /submit_quote, /submit_journal, /unsubscribe, /help.
 
 import discord
 from discord.ext import commands

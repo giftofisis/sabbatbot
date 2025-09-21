@@ -9,10 +9,10 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21 16:00 BST] v1.9.2.1 - Fixed loop variable capture for buttons; emojis now display correctly.
-# [2025-09-21 15:30 BST] v1.9.2.0 - Updated onboarding to import REGIONS and ZODIAC_SIGNS from constants.py to stay synced with reminders.py
-# [2025-09-21 14:00 BST] v1.9.1.0 - Added emojis to all onboarding buttons.
-# [2025-09-21 12:00 BST] v1.9.0.0 - Fully integrated safe_send, cancel support, and daily preference handling.
+# [2025-09-21] v1.9.2.1 - Fixed loop variable capture for buttons; emojis now display correctly.
+# [2025-09-21] v1.9.2.0 - Updated onboarding to import REGIONS and ZODIAC_SIGNS from constants.py to stay synced with reminders.py.
+# [2025-09-21] v1.9.1.0 - Added emojis to all onboarding buttons.
+# [2025-09-21] v1.9.0.0 - Fully integrated safe_send, cancel support, and daily preference handling.
 
 import discord
 from discord.ext import commands

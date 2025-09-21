@@ -1,3 +1,16 @@
+# GBPBot - logger.py
+# Version: 1.0.0
+# Last Updated: 2025-09-21
+# Notes:
+# - Centralized logging utilities for GBPBot.
+# - Provides robust_log function for consistent error/info logging across all cogs and bot events.
+# - Handles exceptions safely and outputs to both console and optional Discord log channel.
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-21] v1.0.0 - Initial creation with robust_log function for centralized logging.
+
+
 import traceback
 from datetime import datetime
 

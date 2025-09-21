@@ -6,14 +6,13 @@
 # - save_user_preferences/get_user_preferences updated to handle 'daily'.
 # - Fully compatible with reminders.py daily_loop and subscription handling.
 # - Minor fixes for async DB operations and robust exception logging.
-
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 12:30 BST] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
-# [2025-09-20 12:35 BST] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
-# [2025-09-20 12:40 BST] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
-# [2025-09-21 11:40 BST] v1.0.3b4 - Corrected get_all_subscribed_users and daily unpacking; synced with reminders.py daily loop.
+# [2025-09-20] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
+# [2025-09-20] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
+# [2025-09-20] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
+# [2025-09-21] v1.0.3b4 - Corrected get_all_subscribed_users and daily unpacking; synced with reminders.py daily loop.
 
 
 import sqlite3

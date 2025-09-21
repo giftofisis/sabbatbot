@@ -8,7 +8,7 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21 12:00 BST] v1.9.0.0 - Robust safe_send fully integrated across all cogs; fixed is_finished errors.
+# [2025-09-21] v1.9.0.0 - Robust safe_send fully integrated across all cogs; fixed is_finished errors.
 
 
 import traceback

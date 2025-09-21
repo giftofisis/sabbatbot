@@ -1,5 +1,5 @@
 # GBPBot - bot.py
-# Version: 1.9.0.0
+# Version: 1.9.2.0
 # Last Updated: 2025-09-21
 # Notes:
 # - Core bot initialization and cog loading.
@@ -8,8 +8,10 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21 12:00 BST] v1.9.0.0 - Synced bot.py with updated cogs, version_tracker, and safe_send improvements.
-# [2025-09-20 12:00 BST] v1.8.0.0 - Initial integration of reminders.py, onboarding.py, commands.py with daily_loop and safe_send.
+# [2025-09-21] v1.9.2.0 - Synced bot.py with updated cogs (onboarding.py v1.9.2.0, reminders.py v1.10.0), version_tracker, and safe_send improvements.
+# [2025-09-21] v1.2.4b6 - Updated safe_send, onboarding flow, daily reminders loop, and version_tracker integration across all cogs.
+# [2025-09-21] v1.9.0.0 - Synced bot.py with updated cogs, version_tracker, and safe_send improvements.
+# [2025-09-20] v1.8.0.0 - Initial integration of reminders.py, onboarding.py, commands.py with daily_loop and safe_send.
 
 import os
 import discord
@@ -97,7 +99,3 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-# -----------------------
-# CHANGE LOG
-# -----------------------
-# [2025-09-20 12:50] v1.2.4b6 - Updated safe_send, onboarding flow, daily reminders loop, and version_tracker integration across all cogs
