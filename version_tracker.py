@@ -31,6 +31,7 @@ FILE_VERSIONS = {
 
 # Alias for backward compatibility
 file_versions = FILE_VERSIONS
+VERSIONS = FILE_VERSIONS
 
 def get_file_version(filename: str) -> str:
     """
