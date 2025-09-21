@@ -1,15 +1,17 @@
 # GBPBot - onboarding.py
-# Version: 1.9.0.0
+# Version: 1.9.2.0
 # Last Updated: 2025-09-21
 # Notes:
 # - Fully robust DM onboarding flow with buttons (region, zodiac, reminders).
 # - Cancel support included; safe_send ensures no is_finished errors.
+# - Emojis pulled from constants.py to keep onboarding & reminders in sync.
 # - Syncs with db.py user preferences including 'daily'.
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2025-09-21 15:30 BST] v1.9.2.0 - Updated onboarding to import REGIONS and ZODIAC_SIGNS from constants.py to stay synced with reminders.py
+# [2025-09-21 14:00 BST] v1.9.1.0 - Added emojis to all onboarding buttons.
 # [2025-09-21 12:00 BST] v1.9.0.0 - Fully integrated safe_send, cancel support, and daily preference handling.
-# [2025-09-20 12:10 BST] v1.8.0.0 - Initial robust DM onboarding flow with emoji buttons and region/zodiac/reminder selection.
 
 import discord
 from discord.ext import commands
@@ -18,16 +20,8 @@ from utils.safe_send import safe_send
 from db import save_user_preferences
 from utils.logger import robust_log, LOG_CHANNEL_ID
 from version_tracker import GBPBot_version, get_file_version
+from constants import REGIONS, ZODIAC_SIGNS
 import traceback
-
-# -----------------------
-# Onboarding Config
-# -----------------------
-REGIONS = ["North America", "South America", "Europe", "Africa", "Oceania & Asia"]
-ZODIAC_SIGNS = [
-    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
-]
 
 # -----------------------
 # Onboarding DM Flow with Buttons
@@ -43,7 +37,11 @@ class OnboardingDM(discord.ui.View):
 
     async def start(self):
         try:
-            await safe_send(self.user, "🚀 Welcome! Let's set up your preferences. Click the buttons to proceed.", view=None)
+            await safe_send(
+                self.user,
+                "🚀 Welcome! Let's set up your preferences. Click the buttons to proceed.",
+                view=None
+            )
             await self.select_region()
         except Exception:
             tb = traceback.format_exc()
@@ -51,8 +49,8 @@ class OnboardingDM(discord.ui.View):
 
     async def select_region(self):
         view = discord.ui.View(timeout=None)
-        for region in REGIONS:
-            button = discord.ui.Button(label=region, style=discord.ButtonStyle.primary)
+        for region, info in REGIONS.items():
+            button = discord.ui.Button(label=region, style=discord.ButtonStyle.primary, emoji=info["emoji"])
             async def region_callback(interaction: discord.Interaction, r=region):
                 self.region = r
                 await safe_send(interaction, f"✅ Region set to **{r}**", ephemeral=True, view=None)
@@ -61,7 +59,7 @@ class OnboardingDM(discord.ui.View):
             button.callback = region_callback
             view.add_item(button)
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, emoji="❌")
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
         cancel_btn.callback = cancel_callback
@@ -71,8 +69,8 @@ class OnboardingDM(discord.ui.View):
 
     async def select_zodiac(self):
         view = discord.ui.View(timeout=None)
-        for sign in ZODIAC_SIGNS:
-            button = discord.ui.Button(label=sign, style=discord.ButtonStyle.secondary)
+        for sign, emoji in ZODIAC_SIGNS.items():
+            button = discord.ui.Button(label=sign, style=discord.ButtonStyle.secondary, emoji=emoji)
             async def zodiac_callback(interaction: discord.Interaction, s=sign):
                 self.zodiac = s
                 await safe_send(interaction, f"✅ Zodiac set to **{s}**", ephemeral=True, view=None)
@@ -81,7 +79,7 @@ class OnboardingDM(discord.ui.View):
             button.callback = zodiac_callback
             view.add_item(button)
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger)
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.danger, emoji="❌")
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
         cancel_btn.callback = cancel_callback
@@ -92,21 +90,21 @@ class OnboardingDM(discord.ui.View):
     async def ask_subscription(self):
         view = discord.ui.View(timeout=None)
 
-        yes_btn = discord.ui.Button(label="Yes", style=discord.ButtonStyle.success)
+        yes_btn = discord.ui.Button(label="Yes", style=discord.ButtonStyle.success, emoji="✅")
         async def yes_callback(interaction: discord.Interaction):
             self.subscribe_daily = True
             await self.complete_onboarding(interaction)
         yes_btn.callback = yes_callback
         view.add_item(yes_btn)
 
-        no_btn = discord.ui.Button(label="No", style=discord.ButtonStyle.danger)
+        no_btn = discord.ui.Button(label="No", style=discord.ButtonStyle.danger, emoji="❌")
         async def no_callback(interaction: discord.Interaction):
             self.subscribe_daily = False
             await self.complete_onboarding(interaction)
         no_btn.callback = no_callback
         view.add_item(no_btn)
 
-        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
+        cancel_btn = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="🛑")
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
         cancel_btn.callback = cancel_callback
@@ -116,23 +114,20 @@ class OnboardingDM(discord.ui.View):
 
     async def complete_onboarding(self, interaction: discord.Interaction):
         try:
-            # Save preferences to DB
             await save_user_preferences(
                 user_id=self.user.id,
                 region=self.region,
                 zodiac=self.zodiac,
-                hour=None,               # default value; will preserve existing or DB default
-                days=None,               # default value; will preserve existing or DB default
+                hour=None,
+                days=None,
                 daily=self.subscribe_daily,
                 subscribed=True,
                 bot=self.bot
             )
 
-            # Confirm to user
             await safe_send(interaction, "🎉 Onboarding complete! Your preferences have been saved.", ephemeral=True, view=None)
             self.stop()
 
-            # Log completion to central LOG_CHANNEL_ID
             if LOG_CHANNEL_ID:
                 channel = self.bot.get_channel(LOG_CHANNEL_ID)
                 if not channel:
@@ -152,7 +147,6 @@ class OnboardingDM(discord.ui.View):
             tb = traceback.format_exc()
             await robust_log(self.bot, f"[ERROR] Completing onboarding failed for {self.user.id}\n{tb}")
             await safe_send(interaction, "⚠️ Failed to save preferences. Try again later.", ephemeral=True, view=None)
-
 
 # -----------------------
 # Cog
@@ -191,11 +185,3 @@ class OnboardingCog(commands.Cog):
 async def setup(bot):
     await bot.add_cog(OnboardingCog(bot))
     await robust_log(bot, f"✅ OnboardingCog loaded | version {get_file_version('onboarding.py')}")
-
-# -----------------------
-# CHANGE LOG
-# -----------------------
-# [2025-09-20 13:50] v1.0.2b1 - Updated to modern button callbacks and robust safe_send for NoneType is_finished fix
-# [2025-09-20 13:55] v1.0.2b2 - Added cancel support for all steps and centralized logging
-# [2025-09-20 14:10] v1.0.2b3 - Fixed cancel buttons to be async callbacks to prevent TypeError
-# [2025-09-20 14:25] v1.0.2b4 - Added logging of completed onboardings to central LOG_CHANNEL_ID

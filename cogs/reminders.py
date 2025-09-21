@@ -1,21 +1,21 @@
 # GBPBot - reminders.py
-# Version: 1.0.1b5
+# Version: 1.9.2.0
 # Last Updated: 2025-09-21
 # Notes:
-# - Daily loop now respects 'daily' flag from DB.
-# - Fully robust safe_send handling across all buttons and loops.
+# - Fully synced with onboarding.py using constants.py for regions, emojis, and sabbats.
+# - Daily loop respects 'daily' flag from DB.
+# - Robust safe_send handling across all buttons and loops.
 # - Fixed ephem.Moon input type; ensured view=None in safe_send.
 # - Compatible with updated db.py get_all_subscribed_users.
-
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 12:50] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop.
-# [2025-09-20 13:12] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends.
-# [2025-09-20 13:25] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls.
-# [2025-09-21 11:42] v1.0.1b5 - Updated daily_loop to use daily flag from DB and unpack correct values.
-# [2025-09-20 12:45] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging.
-
+# [2025-09-21 15:45 BST] v1.9.2.0 - Synced with constants.py; regions, emojis, sabbats now imported from constants.
+# [2025-09-21 11:42 BST] v1.0.1b5 - Updated daily_loop to use daily flag from DB and unpack correct values.
+# [2025-09-20 13:25 BST] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls.
+# [2025-09-20 13:12 BST] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends.
+# [2025-09-20 12:50 BST] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop.
+# [2025-09-20 12:45 BST] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging.
 
 import discord
 from discord.ext import commands, tasks
@@ -28,28 +28,7 @@ from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, ge
 from utils.logger import robust_log
 from utils.safe_send import safe_send
 from version_tracker import GBPBot_version, get_file_version
-
-# -----------------------
-# Config
-# -----------------------
-REGIONS = {
-    "North America": {"name": "North America", "role_id": 1416438886397251768, "tz": "America/New_York", "emoji": "🗽", "color": 0x2ecc71},
-    "South America": {"name": "South America", "role_id": 1416438925140164809, "tz": "America/Sao_Paulo", "emoji": "🌴", "color": 0xe67e22},
-    "Europe": {"name": "Europe", "role_id": 1416439011517534288, "tz": "Europe/London", "emoji": "🍀", "color": 0x3498db},
-    "Africa": {"name": "Africa", "role_id": 1416439116043649224, "tz": "Africa/Johannesburg", "emoji": "🌍", "color": 0xf1c40f},
-    "Oceania & Asia": {"name": "Oceania & Asia", "role_id": 1416439141339758773, "tz": "Australia/Sydney", "emoji": "🌺", "color": 0x9b59b6},
-}
-
-SABBATS = {
-    "Imbolc": (2, 1),
-    "Ostara": (3, 20),
-    "Beltane": (5, 1),
-    "Litha": (6, 21),
-    "Lughnasadh": (8, 1),
-    "Mabon": (9, 22),
-    "Samhain": (10, 31),
-    "Yule": (12, 21),
-}
+from constants import REGIONS, SABBATS
 
 # -----------------------
 # Helpers
@@ -66,7 +45,7 @@ def next_full_moon_for_tz(tz_name: str):
     return fm_utc.astimezone(ZoneInfo(tz_name)).date()
 
 def moon_phase_emoji(date: datetime.date) -> str:
-    moon = ephem.Moon(ephem.Date(date))  # Ensure ephem.Date type
+    moon = ephem.Moon(ephem.Date(date))
     phase = moon.phase
     if phase < 10:
         return "🌑"
@@ -140,7 +119,7 @@ class RemindersCog(commands.Cog):
 
     async def send_daily_reminder(self, user_id, prefs):
         try:
-            if not prefs["subscribed"]:
+            if not prefs["subscribed"] or not prefs["daily"]:
                 return
             user = self.bot.get_user(user_id)
             if not user:
@@ -195,16 +174,14 @@ class RemindersCog(commands.Cog):
                         "zodiac": zodiac,
                         "hour": hour,
                         "days": days.split(","),
-                        "subscribed": True,          # all users here are subscribed
-                        "daily": bool(daily)         # new flag
+                        "subscribed": True,
+                        "daily": bool(daily)
                     }
-                    if prefs["daily"]:              # only send if daily is enabled
-                        await self.send_daily_reminder(user_id, prefs)
+                    await self.send_daily_reminder(user_id, prefs)
                 except Exception as e:
                     await robust_log(self.bot, f"[ERROR] Failed sending reminder to user {row[0]}\n{e}")
         except Exception as e:
             await robust_log(self.bot, f"[ERROR] Failed running daily loop\n{e}")
-
 
     @daily_loop.before_loop
     async def before_daily_loop(self):
@@ -216,14 +193,14 @@ class RemindersCog(commands.Cog):
 # -----------------------
 async def setup(bot):
     await bot.add_cog(RemindersCog(bot))
-    await robust_log(bot, f"✅ Loaded RemindersCog (v{GBPBot_version.get('major')}.{GBPBot_version.get('minor')}.{GBPBot_version.get('patch')}.{GBPBot_version.get('build')})")
+    await robust_log(bot, f"✅ RemindersCog loaded | version {get_file_version('reminders.py')}")
 
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 12:45 BST] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging.
-# [2025-09-20 12:50 BST] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop.
-# [2025-09-20 13:12 BST] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends.
-# [2025-09-20 13:25 BST] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls.
-# [2025-09-21 10:40 BST] v1.0.1b5 - Synced with db.py changes: reminders loop now unpacks 6 values including 'daily' flag and respects prefs["daily"].
-
+# [2025-09-21 15:45 BST] v1.9.2.0 - Pulled regions, emojis, and SABBATS from constants.py to stay synced with onboarding.py
+# [2025-09-21 11:42 BST] v1.0.1b5 - Daily loop uses 'daily' flag and unpacks 6 values from DB
+# [2025-09-20 13:25 BST] v1.0.1b4 - Fixed ephem.Moon input type; ensured view=None in safe_send
+# [2025-09-20 13:12 BST] v1.0.1b3 - Fully integrated robust safe_send fix
+# [2025-09-20 12:50 BST] v1.0.1b2 - Updated safe_send calls and logging
+# [2025-09-20 12:45 BST] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging
