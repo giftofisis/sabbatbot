@@ -1,7 +1,15 @@
 # GBPBot - bot.py
-# Version: 1.2.4 build 6
-# Last Updated: 2025-09-20
-# Notes: Safe_send fixed, onboarding flow robust, daily reminder loop fixed, version tracking added to all cogs
+# Version: 1.9.0.0
+# Last Updated: 2025-09-21
+# Notes:
+# - Core bot initialization and cog loading.
+# - Fully synchronized with updated db.py, reminders.py, onboarding.py, commands.py.
+# - Safe_send, version tracking, and daily_loop fully integrated.
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-21 12:00 BST] v1.9.0.0 - Synced bot.py with updated cogs, version_tracker, and safe_send improvements.
+# [2025-09-20 12:00 BST] v1.8.0.0 - Initial integration of reminders.py, onboarding.py, commands.py with daily_loop and safe_send.
 
 import os
 import discord

@@ -1,12 +1,15 @@
-# utils/safe_send.py
-# Version: 1.2.4 build 7
-# Last Updated: 2025-09-20T12:35:00+01:00 (BST)
-# Notes: Fully robust safe_send for GBPBot
-#        - Handles view=None safely
-#        - Uses getattr to prevent AttributeError
-#        - Interaction fallback to followup.send
-#        - Robust logging with required message argument
-#        - Compatible with all cogs (onboarding, commands, reminders)
+# GBPBot - utils/safe_send.py
+# Version: 1.9.0.0
+# Last Updated: 2025-09-21
+# Notes:
+# - Provides robust safe_send for users and interactions.
+# - Handles None views and already-responded interactions.
+# - Fully integrated with all cogs including reminders and onboarding.
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-21 12:00 BST] v1.9.0.0 - Robust safe_send fully integrated across all cogs; fixed is_finished errors.
+
 
 import traceback
 from discord import Interaction

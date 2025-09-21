@@ -1,9 +1,15 @@
 # GBPBot - commands.py
-# Version: 1.1.0 build 3
-# Last Updated: 2025-09-20
-# Notes: All slash commands and helper commands updated with safe_send, robust logging, and file version tracking
-#        Fully integrated safe_send fix for NoneType is_finished errors.
-#        Removed duplicate /onboard registration and updated /help to reference DM onboarding.
+# Version: 1.9.0.0
+# Last Updated: 2025-09-21
+# Notes:
+# - Slash commands fully use safe_send and robust logging.
+# - Compatible with updated db.py user preferences including 'daily'.
+# - /onboard command removed from this cog (only in onboarding.py).
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-21 12:00 BST] v1.9.0.0 - Updated commands to fully support safe_send, logging, and daily flag from DB.
+# [2025-09-20 11:50 BST] v1.8.0.0 - Initial slash command setup with /reminder, /submit_quote, /submit_journal, /unsubscribe, /help.
 
 import discord
 from discord.ext import commands

@@ -6,13 +6,13 @@
 
 GBPBot_version = {
     "major": 1,
-    "minor": 2,
-    "patch": 4,  # incremented due to fixes and improvements
-    "build": 6,  # incremented for this deployment
-    "date": "2025-09-20T12:35:00+01:00",  # BST
+    "minor": 9,      # updated to reflect latest history
+    "patch": 0,
+    "build": 0,
+    "date": "2025-09-21T12:00:00+01:00",  # BST
     "notes": (
-        "v1.2.4.6 - Safe_send fully robust, onboarding flow fixed, "
-        "daily reminders loop robust, version tracking synchronized across cogs."
+        "v1.9.0.0 - Fully robust safe_send, daily flag handling, ephem.Moon fix, "
+        "daily_loop updated, reminders and DB fully synced with version history."
     )
 }
 
@@ -20,13 +20,13 @@ GBPBot_version = {
 # File Version Tracker
 # -----------------------
 file_versions = {
-    "bot.py": "1.2.4.6",
-    "db.py": "1.0.0",
-    "cogs/commands.py": "1.2.4.6",
-    "cogs/onboarding.py": "1.2.4.6",
-    "cogs/reminders.py": "1.6.0",
-    "utils/safe_send.py": "1.2.4.6",
-    "version_tracker.py": "1.2.4.6"
+    "bot.py": "1.9.0.0",
+    "db.py": "1.0.3b4",
+    "cogs/commands.py": "1.9.0.0",
+    "cogs/onboarding.py": "1.9.0.0",
+    "cogs/reminders.py": "1.0.1b5",
+    "utils/safe_send.py": "1.9.0.0",
+    "version_tracker.py": "1.9.0.0"
 }
 
 def get_file_version(filename: str) -> str:

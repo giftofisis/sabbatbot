@@ -1,9 +1,21 @@
 # GBPBot - reminders.py
-# Version: 1.0.1 build 4
-# Last Updated: 2025-09-20
-# Notes: Handles region-based daily reminders, Sabbat & full moon buttons, random quotes/journal prompts
-#        Fully integrated safe_send and robust logging with fix for NoneType is_finished errors.
-#        Added version_tracker integration and ephem.Moon fixes.
+# Version: 1.0.1b5
+# Last Updated: 2025-09-21
+# Notes:
+# - Daily loop now respects 'daily' flag from DB.
+# - Fully robust safe_send handling across all buttons and loops.
+# - Fixed ephem.Moon input type; ensured view=None in safe_send.
+# - Compatible with updated db.py get_all_subscribed_users.
+
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-20 12:50] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop.
+# [2025-09-20 13:12] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends.
+# [2025-09-20 13:25] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls.
+# [2025-09-21 11:42] v1.0.1b5 - Updated daily_loop to use daily flag from DB and unpack correct values.
+# [2025-09-20 12:45] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging.
+
 
 import discord
 from discord.ext import commands, tasks
@@ -177,19 +189,22 @@ class RemindersCog(commands.Cog):
             users = await get_all_subscribed_users()
             for row in users:
                 try:
-                    user_id, region, zodiac, hour, days, subscribed = row
+                    user_id, region, zodiac, hour, days, daily = row
                     prefs = {
                         "region": region,
                         "zodiac": zodiac,
                         "hour": hour,
                         "days": days.split(","),
-                        "subscribed": bool(subscribed)
+                        "subscribed": True,          # all users here are subscribed
+                        "daily": bool(daily)         # new flag
                     }
-                    await self.send_daily_reminder(user_id, prefs)
+                    if prefs["daily"]:              # only send if daily is enabled
+                        await self.send_daily_reminder(user_id, prefs)
                 except Exception as e:
                     await robust_log(self.bot, f"[ERROR] Failed sending reminder to user {row[0]}\n{e}")
         except Exception as e:
             await robust_log(self.bot, f"[ERROR] Failed running daily loop\n{e}")
+
 
     @daily_loop.before_loop
     async def before_daily_loop(self):
@@ -206,7 +221,9 @@ async def setup(bot):
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-20 12:50] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop
-# [2025-09-20 13:12] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends
-# [2025-09-20 13:25] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls
-# [2025-09-20 12:45] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging
+# [2025-09-20 12:45 BST] v1.0.0b1 - Initial version with reminders, buttons, safe_send, and robust logging.
+# [2025-09-20 12:50 BST] v1.0.1b2 - Updated safe_send calls and logging for all buttons and daily loop.
+# [2025-09-20 13:12 BST] v1.0.1b3 - Fully integrated robust safe_send fix for NoneType is_finished errors in all sends.
+# [2025-09-20 13:25 BST] v1.0.1b4 - Fixed ephem.Moon input type, ensured view=None in all safe_send calls.
+# [2025-09-21 10:40 BST] v1.0.1b5 - Synced with db.py changes: reminders loop now unpacks 6 values including 'daily' flag and respects prefs["daily"].
+

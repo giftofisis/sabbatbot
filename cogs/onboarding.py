@@ -1,8 +1,15 @@
 # GBPBot - onboarding.py
-# Version: 1.0.2 build 4
-# Last Updated: 2025-09-20
-# Notes: Fully robust DM onboarding with safe_send, cancel support, modern button callbacks, fixed view is_finished bug
-#        Now logs onboarding completion to central LOG_CHANNEL_ID
+# Version: 1.9.0.0
+# Last Updated: 2025-09-21
+# Notes:
+# - Fully robust DM onboarding flow with buttons (region, zodiac, reminders).
+# - Cancel support included; safe_send ensures no is_finished errors.
+# - Syncs with db.py user preferences including 'daily'.
+# -----------------------
+# CHANGE LOG
+# -----------------------
+# [2025-09-21 12:00 BST] v1.9.0.0 - Fully integrated safe_send, cancel support, and daily preference handling.
+# [2025-09-20 12:10 BST] v1.8.0.0 - Initial robust DM onboarding flow with emoji buttons and region/zodiac/reminder selection.
 
 import discord
 from discord.ext import commands

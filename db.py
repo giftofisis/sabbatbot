@@ -1,12 +1,11 @@
 # GBPBot - db.py
-# Version: 1.0.3 build 1
-# Last Updated: 2025-09-20
+# Version: 1.0.3b4
+# Last Updated: 2025-09-21
 # Notes:
-# - Added support for 'daily' user preference.
-# - Updated save_user_preferences and get_user_preferences to handle 'daily'.
-# - Added automatic ALTER TABLE in init_db to add 'daily' column if it doesn't exist.
-# - Backwards-compatible with set_user_preferences alias.
-# - All existing functions preserved.
+# - Added 'daily' column support with auto-ALTER TABLE if missing.
+# - save_user_preferences/get_user_preferences updated to handle 'daily'.
+# - Fully compatible with reminders.py daily_loop and subscription handling.
+# - Minor fixes for async DB operations and robust exception logging.
 
 # -----------------------
 # CHANGE LOG
@@ -14,6 +13,8 @@
 # [2025-09-20 12:30 BST] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
 # [2025-09-20 12:35 BST] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
 # [2025-09-20 12:40 BST] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
+# [2025-09-21 11:40 BST] v1.0.3b4 - Corrected get_all_subscribed_users and daily unpacking; synced with reminders.py daily loop.
+
 
 import sqlite3
 from typing import List, Optional, Tuple
@@ -296,13 +297,13 @@ async def get_all_journal_prompts() -> List[str]:
 async def get_all_subscribed_users() -> List[Tuple]:
     """
     Return list of rows for subscribed users:
-    (user_id, region, zodiac, reminder_hour, reminder_days, subscribed, daily)
+    (user_id, region, zodiac, reminder_hour, reminder_days, daily)
     """
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT user_id, region, zodiac, reminder_hour, reminder_days, subscribed, daily FROM users WHERE subscribed = 1"
+            "SELECT user_id, region, zodiac, reminder_hour, reminder_days, daily FROM users WHERE subscribed = 1"
         )
         rows = cursor.fetchall()
         return rows
