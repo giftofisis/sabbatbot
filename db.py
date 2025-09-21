@@ -22,7 +22,7 @@ import traceback
 import asyncio
 
 from utils.logger import robust_log
-from version_tracker import GBPBot_version, file_versions, get_file_version
+from version_tracker import GBPBot_version, FILE_VERSIONS, get_file_version
 
 DB_FILE = "bot_data.db"
 DEFAULT_DAYS = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
