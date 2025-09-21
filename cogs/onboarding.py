@@ -69,7 +69,7 @@ class OnboardingDM(discord.ui.View):
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
-        view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="✖️"))
+        view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="❌"))
 
         await safe_send(self.user, "🌎 Select your **Region**:", view=view)
 
