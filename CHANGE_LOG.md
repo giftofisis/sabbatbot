@@ -7,6 +7,54 @@
 # Deployment target: Discloud
 # Architecture: Flat-file (single directory) Python project
 # ==================================================
+# --------------------------------------------------
+# [2026-01-18] v1.10.2 — Profile Editing & Admin Hardening
+# --------------------------------------------------
+
+## User Experience
+- Added **interactive `/profile` command (DM-only)** with edit buttons:
+  - 🔄 Refresh profile
+  - ☀️ Toggle daily messages
+  - 📬 Toggle subscription status
+  - 🧭 Guidance to re-run onboarding for region/zodiac changes
+- `/profile` continues to expose **user-facing data only**:
+  - Region, timezone, hemisphere (derived from constants)
+  - Zodiac
+  - Subscription and daily reminder status
+- All profile interactions are **owner-locked** (buttons cannot be used by other users)
+
+## Admin / Moderation
+- Hardened internal and diagnostic commands:
+  - `/test` is now **guild-only** and **administrator-only**
+  - `/onboarding_status` is now **guild-only** and **administrator-only**
+- Prevents accidental exposure of internal or member-level data in public servers
+
+## commands.py (v1.9.4.0)
+- Introduced `ProfileEditView` using Discord UI buttons
+- Centralized profile embed rendering for consistent refresh/update behavior
+- Removed cog-level slash command syncing:
+  - Command sync is now **exclusively handled in bot.py**
+- Improved error handling and logging consistency via `robust_log(exc=...)`
+
+## db.py (v1.0.5.0)
+- Added `set_daily()` helper for toggling daily reminders
+- `set_daily()` delegates to `save_user_preferences()` for:
+  - Upsert safety
+  - Schema consistency
+  - Zero new dependencies
+- No breaking schema changes introduced
+
+## version_tracker.py (v1.0.9)
+- Updated tracked versions for:
+  - `commands.py` → 1.9.4.0
+  - `db.py` → 1.0.5.0
+- Maintains flat-structure compatibility and backward aliases
+- Master `GBPBot_version` remains **1.10.1** (feature batch in progress)
+
+## Internal Quality
+- All new interactions use existing `safe_send` lifecycle handling
+- No changes required to reminder loops or onboarding flow
+- Fully Discloud-safe (no background tasks, no new env requirements)
 
 
 # --------------------------------------------------

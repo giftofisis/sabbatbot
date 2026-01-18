@@ -1,5 +1,5 @@
 # GBPBot - version_tracker.py
-# Version: 1.0.8
+# Version: 1.0.9
 # Last Updated: 2026-01-18
 # Notes:
 # - Centralized file version tracking for GBPBot.
@@ -8,6 +8,8 @@
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2026-01-18] v1.0.9
+# - Updated tracked versions for db.py (1.0.5.0) and commands.py (1.9.4.0) for /profile edit buttons + set_daily helper.
 # [2026-01-18] v1.0.8
 # - Flat-structure alignment: updated bot.py version and trimmed tracking to core flat-directory files.
 # [2026-01-18] v1.0.7
@@ -23,12 +25,12 @@ GBPBot_version = "1.10.1"
 # Core files expected in the flat (single-directory) Discloud layout
 FILE_VERSIONS = {
     "bot.py": "1.9.5.1",
-    "db.py": "1.0.4.0",
+    "db.py": "1.0.5.0",
     "onboarding.py": "1.9.2.1",
     "reminders.py": "1.10.1",
-    "commands.py": "1.9.3.0",
+    "commands.py": "1.9.4.0",
     "logger.py": "1.1.0",
-    "version_tracker.py": "1.0.8",
+    "version_tracker.py": "1.0.9",
 }
 
 # Aliases for backward compatibility (older code may import these names)

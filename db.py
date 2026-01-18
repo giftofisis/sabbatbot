@@ -1,15 +1,20 @@
 # GBPBot - db.py
-# Version: 1.0.4.1
+# Version: 1.0.5.0
 # Last Updated: 2026-01-18
 # Notes:
-# - Flat-structure refactor: imports use logger.py directly (no utils/).
+# - Flat-structure imports: uses logger.py directly (no utils/).
 # - DB_FILE is env-driven (DB_FILE) with safe default, and auto-creates directories.
-# - Fix robust_log usage: pass exc=<Exception> (not traceback string).
+# - robust_log usage fixed: pass exc=<Exception>.
 # - Keeps 'daily' column support with auto-ALTER TABLE if missing.
+# - Added set_daily() helper (uses save_user_preferences; no aiosqlite dependency).
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2026-01-18] v1.0.4.1 - Flat-structure imports + env-driven DB_FILE + safe conn handling + robust_log fixes.
+# [2026-01-18] v1.0.5.0
+# - Added set_daily(user_id, daily) helper using save_user_preferences (consistent with set_subscription).
+# - Removed accidental aiosqlite/utils.logger usage in set_daily (flat-structure + zero extra deps).
+# [2026-01-18] v1.0.4.1
+# - Flat-structure imports + env-driven DB_FILE + safe conn handling + robust_log fixes.
 # [2025-09-21] v1.0.3b4 - Corrected get_all_subscribed_users and daily unpacking; synced with reminders.py daily loop.
 # [2025-09-20] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
 # [2025-09-20] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
@@ -238,7 +243,18 @@ async def get_user_preferences(user_id: int) -> Optional[dict]:
 
 
 async def set_subscription(user_id: int, status: bool, bot=None) -> None:
+    """
+    Enable/disable subscription (used by /unsubscribe and profile toggle).
+    """
     await save_user_preferences(user_id, subscribed=status, bot=bot)
+
+
+async def set_daily(user_id: int, daily: bool, bot=None) -> None:
+    """
+    Enable/disable daily messages for a user.
+    Uses save_user_preferences for consistent upsert behavior (no extra deps).
+    """
+    await save_user_preferences(user_id, daily=daily, bot=bot)
 
 
 # -----------------------
