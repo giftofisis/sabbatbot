@@ -1,36 +1,40 @@
 # GBPBot - version_tracker.py
-# Version: 1.0.5
-# Last Updated: 2025-09-21
+# Version: 1.0.8
+# Last Updated: 2026-01-18
 # Notes:
 # - Centralized file version tracking for GBPBot.
-# - Can be imported by cogs and utils to get the version of any core file.
-# - Updated to include logger.py and hemisphere-aware sabbat reminders.
+# - Backward-compatible aliases included (VERSIONS, file_versions).
+# - Flat-structure friendly: tracks the core .py files expected in the main directory.
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21] v1.0.5 - Added logger.py to file version tracking; current version "1.0.0".
-# [2025-09-21] v1.0.4 - Updated reminders.py to v1.10.0 (hemisphere-aware sabbat reminders); constants.py to v1.0.1 (added hemisphere field and SABBATS_HEMISPHERES)
-# [2025-09-21] v1.0.3 - Updated onboarding.py and reminders.py to v1.9.2.0; master GBPBot_version 1.9.2.0
-# [2025-09-21] v1.0.2 - Updated versions for onboarding.py (1.9.1.0), reminders.py (1.0.1b5), and constants.py (1.0.0)
-# [2025-09-21] v1.0.1 - Added 'constants.py' to file version tracking.
+# [2026-01-18] v1.0.8
+# - Flat-structure alignment: updated bot.py version and trimmed tracking to core flat-directory files.
+# [2026-01-18] v1.0.7
+# - Updated tracked version for commands.py to 1.9.3.0 (added /profile DM-only command and admin-only restrictions).
+# [2026-01-18] v1.0.6
+# - Updated tracked versions for bot.py/db.py/reminders.py/logger.py/commands.py based on Discloud + compatibility fixes.
+# - Added `VERSIONS` alias to prevent ImportError in older code paths.
 # [2025-09-20] v1.0.0 - Initial creation of version_tracker.py for onboarding, reminders, db, commands, and bot.py
 
-# Core file versions
-GBPBot_version = "1.10.0"
+# Master version (overall bot release)
+GBPBot_version = "1.10.1"
 
+# Core files expected in the flat (single-directory) Discloud layout
 FILE_VERSIONS = {
-    "bot.py": "1.9.2.0",
-    "db.py": "1.0.3b4",
+    "bot.py": "1.9.5.1",
+    "db.py": "1.0.4.0",
     "onboarding.py": "1.9.2.1",
-    "reminders.py": "1.10.0",
-    "commands.py": "1.9.0.0",
-    "constants.py": "1.0.1",
-    "safe_send.py": "1.9.0.0",
-    "logger.py": "1.0.0"
+    "reminders.py": "1.10.1",
+    "commands.py": "1.9.3.0",
+    "logger.py": "1.1.0",
+    "version_tracker.py": "1.0.8",
 }
 
-# Alias for backward compatibility
+# Aliases for backward compatibility (older code may import these names)
 file_versions = FILE_VERSIONS
+VERSIONS = FILE_VERSIONS
+
 
 def get_file_version(filename: str) -> str:
     """

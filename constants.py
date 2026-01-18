@@ -1,20 +1,23 @@
 # GBPBot - constants.py
-# Version: 1.0.1
-# Last Updated: 2025-09-21
+# Version: 1.0.2
+# Last Updated: 2026-01-18
 # Notes:
 # - Centralized constants for regions, zodiac signs, emojis, and other shared references.
-# - Added hemisphere support for regions to be used in sabbat reminders.
+# - Includes hemisphere support for sabbat reminders.
+# - Adds "name" field inside each region for consistent display usage across cogs.
 # -----------------------
 # CHANGE LOG
 # -----------------------
-# [2025-09-21] v1.0.0 - Initial creation of constants.py with regions, zodiac signs, emojis, and related references.
+# [2026-01-18] v1.0.2 - Added "name" field to each region entry (prevents KeyError in reminder buttons/embeds).
 # [2025-09-21] v1.0.1 - Fixed missing commas in REGIONS, added hemisphere field for all regions.
+# [2025-09-21] v1.0.0 - Initial creation of constants.py with regions, zodiac signs, emojis, and related references.
 
 # -----------------------
 # Regions
 # -----------------------
 REGIONS = {
     "North America": {
+        "name": "North America",
         "emoji": "🗽",
         "tz": "America/New_York",
         "role_id": 1416438886397251768,
@@ -22,6 +25,7 @@ REGIONS = {
         "hemisphere": "north"
     },
     "South America": {
+        "name": "South America",
         "emoji": "🌴",
         "tz": "America/Sao_Paulo",
         "role_id": 1416438925140164809,
@@ -29,6 +33,7 @@ REGIONS = {
         "hemisphere": "south"
     },
     "Europe": {
+        "name": "Europe",
         "emoji": "🍀",
         "tz": "Europe/London",
         "role_id": 1416439011517534288,
@@ -36,6 +41,7 @@ REGIONS = {
         "hemisphere": "north"
     },
     "Africa": {
+        "name": "Africa",
         "emoji": "🌍",
         "tz": "Africa/Johannesburg",
         "role_id": 1416439116043649224,
@@ -43,6 +49,7 @@ REGIONS = {
         "hemisphere": "south"
     },
     "Oceania & Asia": {
+        "name": "Oceania & Asia",
         "emoji": "🌺",
         "tz": "Australia/Sydney",
         "role_id": 1416439141339758773,

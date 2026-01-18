@@ -1,2 +1,3 @@
 discord.py
 ephem
+python-dotenv==1.0.1

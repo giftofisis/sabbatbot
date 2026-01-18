@@ -1,16 +1,22 @@
 # GBPBot - reminders.py
-# Version: 1.10.0
-# Last Updated: 2025-09-21
+# Version: 1.10.2
+# Last Updated: 2026-01-18
 # Notes:
-# - Added hemisphere-aware sabbat reminder system.
-# - Daily loop respects 'daily' flag from DB and now includes moon phase emoji.
-# - Robust safe_send handling across all buttons, loops, and sabbat notifications.
-# - Compatible with updated db.py get_all_subscribed_users.
+# - Flat-structure refactor: imports no longer reference utils/.
+# - Keeps env-driven SABBAT_CHANNEL_ID for Discloud deployments.
+# - Keeps portable date formatting and moon-phase bugfix.
+# - Loop starts made idempotent to avoid "already running" errors.
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2026-01-18] v1.10.2 - Flat-structure imports: logger/safe_send/constants.
+#                     - Make loop starts idempotent (prevents double-start errors).
+# [2026-01-18] v1.10.1 - Discloud-ready config: SABBAT_CHANNEL_ID now loads from env var (optional).
+#                     - Fixed Next Full Moon button calling moon_phase_emoji with datetime instead of date.
+#                     - Improved date formatting portability.
 # [2025-09-21 18:00 BST] v1.10.0 - Added hemisphere-aware sabbat reminders for DMs and optional channel posts.
 
+import os
 import discord
 from discord.ext import commands, tasks
 import datetime
@@ -19,27 +25,38 @@ from zoneinfo import ZoneInfo
 import random
 
 from db import get_user_preferences, get_all_quotes, get_all_journal_prompts, get_all_subscribed_users
-from utils.logger import robust_log
-from utils.safe_send import safe_send
+from logger import robust_log
+from safe_send import safe_send
 from version_tracker import GBPBot_version, get_file_version
-from utils.constants import REGIONS, SABBATS_HEMISPHERES
+from constants import REGIONS, SABBATS_HEMISPHERES
 
-# Optional: set a channel ID to post sabbat notifications publicly
-SABBAT_CHANNEL_ID = None  # Replace with channel ID if needed
+# -----------------------
+# Optional Config (Environment)
+# -----------------------
+# Set in Discloud env panel if you want public sabbat posts:
+#   SABBAT_CHANNEL_ID=1417882934131818577
+#
+# If unset/invalid, sabbat posts will only go via DM.
+_SABBAT_CHANNEL_RAW = os.getenv("SABBAT_CHANNEL_ID", "").strip()
+try:
+    SABBAT_CHANNEL_ID = int(_SABBAT_CHANNEL_RAW) if _SABBAT_CHANNEL_RAW else None
+except ValueError:
+    SABBAT_CHANNEL_ID = None
 
 # -----------------------
 # Helpers
 # -----------------------
 def format_date(d: datetime.date) -> str:
-    return d.strftime("%-d %B %Y")
+    # Portable formatting across platforms
+    return d.strftime("%d %B %Y").lstrip("0")
 
-def next_full_moon_for_tz(tz_name: str):
+def next_full_moon_for_tz(tz_name: str) -> datetime.date:
     now = datetime.datetime.now(ZoneInfo(tz_name))
     fm_utc = ephem.next_full_moon(now).datetime()
     return fm_utc.astimezone(ZoneInfo(tz_name)).date()
 
-def moon_phase_emoji(date: datetime.date) -> str:
-    moon = ephem.Moon(ephem.Date(date))
+def moon_phase_emoji(date_val: datetime.date) -> str:
+    moon = ephem.Moon(ephem.Date(date_val))
     phase = moon.phase
     if phase < 10:
         return "🌑"
@@ -70,15 +87,23 @@ class ReminderButtons(discord.ui.View):
             emoji = self.region_data["emoji"]
             region_name = self.region_data["name"]
             hemisphere = self.region_data.get("hemisphere", "north")
+
             today = datetime.datetime.now(ZoneInfo(tz)).date()
             sabbats = get_sabbat_dates_for_hemisphere(hemisphere, today.year)
             upcoming = [(n, d) for n, d in sabbats.items() if d >= today]
             if not upcoming:
                 upcoming = list(sabbats.items())
+
             name, date_val = sorted(upcoming, key=lambda x: x[1])[0]
-            await safe_send(interaction, f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True, view=None)
+            await safe_send(
+                interaction,
+                f"{emoji} Next Sabbat: **{name}** on **{format_date(date_val)}**\n"
+                f"Region: **{region_name}** | Timezone: **{tz}**",
+                ephemeral=True,
+                view=None
+            )
         except Exception as e:
-            await robust_log(interaction.client, f"[ERROR] Failed Next Sabbat button\n{e}")
+            await robust_log(interaction.client, "[ERROR] Failed Next Sabbat button", exc=e)
             await safe_send(interaction, "⚠️ Could not fetch next Sabbat.", ephemeral=True, view=None)
 
     @discord.ui.button(label="Next Full Moon", style=discord.ButtonStyle.secondary)
@@ -87,11 +112,20 @@ class ReminderButtons(discord.ui.View):
             tz = self.region_data["tz"]
             emoji = self.region_data["emoji"]
             region_name = self.region_data["name"]
+
             fm = next_full_moon_for_tz(tz)
-            phase_emoji = moon_phase_emoji(datetime.datetime.now(ZoneInfo(tz)))
-            await safe_send(interaction, f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\nRegion: **{region_name}** | Timezone: **{tz}**", ephemeral=True, view=None)
+            now_local = datetime.datetime.now(ZoneInfo(tz)).date()
+            phase_emoji = moon_phase_emoji(now_local)
+
+            await safe_send(
+                interaction,
+                f"{emoji} Next Full Moon: **{format_date(fm)}** {phase_emoji}\n"
+                f"Region: **{region_name}** | Timezone: **{tz}**",
+                ephemeral=True,
+                view=None
+            )
         except Exception as e:
-            await robust_log(interaction.client, f"[ERROR] Failed Next Full Moon button\n{e}")
+            await robust_log(interaction.client, "[ERROR] Failed Next Full Moon button", exc=e)
             await safe_send(interaction, "⚠️ Could not fetch next full moon.", ephemeral=True, view=None)
 
     @discord.ui.button(label="Random Quote / Prompt", style=discord.ButtonStyle.success)
@@ -104,7 +138,7 @@ class ReminderButtons(discord.ui.View):
             content = f"💫 Quote: {quote}\n📝 Journal Prompt: {prompt}"
             await safe_send(interaction, content, ephemeral=True, view=None)
         except Exception as e:
-            await robust_log(interaction.client, f"[ERROR] Failed Random Quote/Prompt button\n{e}")
+            await robust_log(interaction.client, "[ERROR] Failed Random Quote/Prompt button", exc=e)
             await safe_send(interaction, "⚠️ Could not fetch quote or journal prompt.", ephemeral=True, view=None)
 
 # -----------------------
@@ -113,31 +147,43 @@ class ReminderButtons(discord.ui.View):
 class RemindersCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.daily_loop.start()
-        self.sabbat_loop.start()
+
+        # Idempotent starts: prevents "Task already running" if started elsewhere
+        try:
+            if not self.daily_loop.is_running():
+                self.daily_loop.start()
+        except Exception:
+            pass
+
+        try:
+            if not self.sabbat_loop.is_running():
+                self.sabbat_loop.start()
+        except Exception:
+            pass
 
     async def send_daily_reminder(self, user_id, prefs):
         try:
-            if not prefs["subscribed"] or not prefs["daily"]:
+            if not prefs.get("subscribed") or not prefs.get("daily"):
                 return
+
             user = self.bot.get_user(user_id)
             if not user:
                 try:
                     user = await self.bot.fetch_user(user_id)
                 except Exception as e:
-                    await robust_log(self.bot, f"Failed to fetch user {user_id}\n{e}")
+                    await robust_log(self.bot, f"Failed to fetch user {user_id}", exc=e)
                     return
 
-            region_data = REGIONS.get(prefs["region"])
+            region_data = REGIONS.get(prefs.get("region"))
             if not region_data:
                 return
 
             tz = ZoneInfo(region_data["tz"])
             now = datetime.datetime.now(tz)
 
-            if now.strftime("%a") not in prefs["days"]:
+            if now.strftime("%a") not in prefs.get("days", []):
                 return
-            if now.hour != prefs["hour"]:
+            if now.hour != prefs.get("hour"):
                 return
 
             quote_list = await get_all_quotes()
@@ -153,14 +199,14 @@ class RemindersCog(commands.Cog):
                     f"💫 Quote: {random.choice(quote_list)}\n"
                     f"📝 Journal Prompt: {random.choice(prompt_list)}"
                 ),
-                color=region_data["color"]
+                color=region_data.get("color", 0x2F3136)
             )
 
             await safe_send(user, embed=embed, view=ReminderButtons(region_data))
             await robust_log(self.bot, f"Sent daily reminder to {user.id}")
 
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] Sending daily reminder to {user_id}\n{e}")
+            await robust_log(self.bot, f"[ERROR] Sending daily reminder to {user_id}", exc=e)
 
     @tasks.loop(minutes=1)
     async def daily_loop(self):
@@ -173,15 +219,15 @@ class RemindersCog(commands.Cog):
                         "region": region,
                         "zodiac": zodiac,
                         "hour": hour,
-                        "days": days.split(","),
+                        "days": days.split(",") if days else [],
                         "subscribed": True,
                         "daily": bool(daily)
                     }
                     await self.send_daily_reminder(user_id, prefs)
                 except Exception as e:
-                    await robust_log(self.bot, f"[ERROR] Failed sending reminder to user {row[0]}\n{e}")
+                    await robust_log(self.bot, f"[ERROR] Failed sending reminder to user {row[0]}", exc=e)
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] Failed running daily loop\n{e}")
+            await robust_log(self.bot, "[ERROR] Failed running daily loop", exc=e)
 
     @daily_loop.before_loop
     async def before_daily_loop(self):
@@ -196,16 +242,25 @@ class RemindersCog(commands.Cog):
         try:
             users = await get_all_subscribed_users()
             today = datetime.date.today()
+
             for row in users:
                 try:
                     user_id, region, zodiac, hour, days, daily = row
                     region_data = REGIONS.get(region)
                     if not region_data:
                         continue
+
                     hemisphere = region_data.get("hemisphere", "north")
                     sabbats = get_sabbat_dates_for_hemisphere(hemisphere, today.year)
                     delta_msgs = {7: "in 7 days", 1: "tomorrow", 0: "today!"}
-                    user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+
+                    user = self.bot.get_user(user_id)
+                    if not user:
+                        try:
+                            user = await self.bot.fetch_user(user_id)
+                        except Exception:
+                            continue
+
                     for name, date_val in sabbats.items():
                         delta = (date_val - today).days
                         if delta in delta_msgs:
@@ -215,14 +270,27 @@ class RemindersCog(commands.Cog):
                                 msg = f"🌿 **{name}** is tomorrow! ({hemisphere.title()} Hemisphere Sabbat)"
                             else:
                                 msg = f"🔥 Happy **{name}**! Today is the Sabbat in the {hemisphere.title()} Hemisphere 🔥"
+
                             await safe_send(user, msg)
+
                             if SABBAT_CHANNEL_ID:
-                                channel = self.bot.get_channel(SABBAT_CHANNEL_ID) or await self.bot.fetch_channel(SABBAT_CHANNEL_ID)
-                                await safe_send(channel, msg)
+                                try:
+                                    channel = self.bot.get_channel(SABBAT_CHANNEL_ID)
+                                    if channel is None:
+                                        channel = await self.bot.fetch_channel(SABBAT_CHANNEL_ID)
+                                    await safe_send(channel, msg)
+                                except Exception as e:
+                                    await robust_log(
+                                        self.bot,
+                                        f"[ERROR] Failed sabbat channel post (channel_id={SABBAT_CHANNEL_ID})",
+                                        exc=e
+                                    )
+
                 except Exception as e:
-                    await robust_log(self.bot, f"[ERROR] Sabbat reminder for user {row[0]}\n{e}")
+                    await robust_log(self.bot, f"[ERROR] Sabbat reminder for user {row[0]}", exc=e)
+
         except Exception as e:
-            await robust_log(self.bot, f"[ERROR] Sabbat loop failed\n{e}")
+            await robust_log(self.bot, "[ERROR] Sabbat loop failed", exc=e)
 
     @sabbat_loop.before_loop
     async def before_sabbat_loop(self):

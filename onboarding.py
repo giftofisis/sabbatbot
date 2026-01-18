@@ -1,28 +1,48 @@
 # GBPBot - onboarding.py
-# Version: 1.9.2.1
-# Last Updated: 2025-09-21
+# Version: 1.9.2.2
+# Last Updated: 2026-01-18
 # Notes:
-# - Fully robust DM onboarding flow with buttons (region, zodiac, reminders).
-# - Cancel support included; safe_send ensures no is_finished errors.
-# - Emojis pulled from constants.py to keep onboarding & reminders in sync.
-# - Syncs with db.py user preferences including 'daily'.
+# - Flat-structure refactor: imports no longer reference utils/.
+# - DM onboarding flow with buttons (region, zodiac, reminders) + cancel support.
+# - Uses env-driven LOG_CHANNEL_ID for optional onboarding completion logs.
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2026-01-18] v1.9.2.2 - Flat-structure imports: safe_send/logger/constants.
+#                      - LOG_CHANNEL_ID now read from env (optional) instead of importing constant.
 # [2025-09-21] v1.9.2.1 - Fixed loop variable capture for buttons; emojis now display correctly.
 # [2025-09-21] v1.9.2.0 - Updated onboarding to import REGIONS and ZODIAC_SIGNS from constants.py to stay synced with reminders.py.
 # [2025-09-21] v1.9.1.0 - Added emojis to all onboarding buttons.
 # [2025-09-21] v1.9.0.0 - Fully integrated safe_send, cancel support, and daily preference handling.
 
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.safe_send import safe_send
-from db import save_user_preferences
-from utils.logger import robust_log, LOG_CHANNEL_ID
-from version_tracker import GBPBot_version, get_file_version
-from utils.constants import REGIONS, ZODIAC_SIGNS
 import traceback
+
+from safe_send import safe_send
+from db import save_user_preferences
+from logger import robust_log
+from version_tracker import GBPBot_version, get_file_version
+from constants import REGIONS, ZODIAC_SIGNS
+
+
+def _get_env(name: str):
+    v = os.getenv(name)
+    if v is None:
+        return None
+    v = v.strip()
+    return v if v else None
+
+
+# Optional: log onboarding completions to a channel (set LOG_CHANNEL_ID in .env)
+_LOG_CHANNEL_RAW = _get_env("LOG_CHANNEL_ID")
+try:
+    LOG_CHANNEL_ID = int(_LOG_CHANNEL_RAW) if _LOG_CHANNEL_RAW else None
+except ValueError:
+    LOG_CHANNEL_ID = None
+
 
 # -----------------------
 # Onboarding DM Flow with Buttons
@@ -41,7 +61,8 @@ class OnboardingDM(discord.ui.View):
             await safe_send(
                 self.user,
                 "🚀 Welcome! Let's set up your preferences. Click the buttons to proceed.",
-                view=None
+                view=None,
+                bot=self.bot
             )
             await self.select_region()
         except Exception:
@@ -56,22 +77,37 @@ class OnboardingDM(discord.ui.View):
         button.callback = callback_func
         return button
 
+    async def cancel(self, interaction: discord.Interaction):
+        try:
+            await safe_send(interaction, "🛑 Onboarding cancelled.", ephemeral=True, view=None, bot=self.bot)
+            self.stop()
+        except Exception as e:
+            await robust_log(self.bot, "[ERROR] Cancel onboarding failed", exc=e)
+
     async def select_region(self):
         view = discord.ui.View(timeout=None)
 
         for region_name, info in REGIONS.items():
             async def region_callback(interaction: discord.Interaction, r=region_name):
                 self.region = r
-                await safe_send(interaction, f"✅ Region set to **{r}**", ephemeral=True, view=None)
-                self.clear_items()
+                await safe_send(interaction, f"✅ Region set to **{r}**", ephemeral=True, view=None, bot=self.bot)
                 await self.select_zodiac()
-            view.add_item(self.create_button(region_name, discord.ButtonStyle.primary, region_callback, emoji=info["emoji"]))
+
+            view.add_item(
+                self.create_button(
+                    region_name,
+                    discord.ButtonStyle.primary,
+                    region_callback,
+                    emoji=info.get("emoji")
+                )
+            )
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
+
         view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="❌"))
 
-        await safe_send(self.user, "🌎 Select your **Region**:", view=view)
+        await safe_send(self.user, "🌎 Select your **Region**:", view=view, bot=self.bot)
 
     async def select_zodiac(self):
         view = discord.ui.View(timeout=None)
@@ -79,16 +115,24 @@ class OnboardingDM(discord.ui.View):
         for sign, emoji in ZODIAC_SIGNS.items():
             async def zodiac_callback(interaction: discord.Interaction, s=sign):
                 self.zodiac = s
-                await safe_send(interaction, f"✅ Zodiac set to **{s}**", ephemeral=True, view=None)
-                self.clear_items()
+                await safe_send(interaction, f"✅ Zodiac set to **{s}**", ephemeral=True, view=None, bot=self.bot)
                 await self.ask_subscription()
-            view.add_item(self.create_button(sign, discord.ButtonStyle.secondary, zodiac_callback, emoji=emoji))
+
+            view.add_item(
+                self.create_button(
+                    sign,
+                    discord.ButtonStyle.secondary,
+                    zodiac_callback,
+                    emoji=emoji
+                )
+            )
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
+
         view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="❌"))
 
-        await safe_send(self.user, "🔮 Select your **Zodiac Sign**:", view=view)
+        await safe_send(self.user, "🔮 Select your **Zodiac Sign**:", view=view, bot=self.bot)
 
     async def ask_subscription(self):
         view = discord.ui.View(timeout=None)
@@ -96,18 +140,19 @@ class OnboardingDM(discord.ui.View):
         async def yes_callback(interaction: discord.Interaction):
             self.subscribe_daily = True
             await self.complete_onboarding(interaction)
-        view.add_item(self.create_button("Yes", discord.ButtonStyle.success, yes_callback, emoji="✅"))
 
         async def no_callback(interaction: discord.Interaction):
             self.subscribe_daily = False
             await self.complete_onboarding(interaction)
-        view.add_item(self.create_button("No", discord.ButtonStyle.secondary, no_callback, emoji="❌"))
 
         async def cancel_callback(interaction: discord.Interaction):
             await self.cancel(interaction)
+
+        view.add_item(self.create_button("Yes", discord.ButtonStyle.success, yes_callback, emoji="✅"))
+        view.add_item(self.create_button("No", discord.ButtonStyle.secondary, no_callback, emoji="❌"))
         view.add_item(self.create_button("Cancel", discord.ButtonStyle.secondary, cancel_callback, emoji="🛑"))
 
-        await safe_send(self.user, "📩 Do you want to receive daily reminders?", view=view)
+        await safe_send(self.user, "📩 Do you want to receive daily reminders?", view=view, bot=self.bot)
 
     async def complete_onboarding(self, interaction: discord.Interaction):
         try:
@@ -122,28 +167,45 @@ class OnboardingDM(discord.ui.View):
                 bot=self.bot
             )
 
-            await safe_send(interaction, "🎉 Onboarding complete! Your preferences have been saved.", ephemeral=True, view=None)
+            await safe_send(
+                interaction,
+                "🎉 Onboarding complete! Your preferences have been saved.",
+                ephemeral=True,
+                view=None,
+                bot=self.bot
+            )
             self.stop()
 
+            # Optional log to channel
             if LOG_CHANNEL_ID:
                 channel = self.bot.get_channel(LOG_CHANNEL_ID)
-                if not channel:
+                if channel is None:
                     try:
                         channel = await self.bot.fetch_channel(LOG_CHANNEL_ID)
                     except Exception as e:
-                        await robust_log(self.bot, f"[ERROR] Failed fetching onboarding log channel\n{e}")
+                        await robust_log(self.bot, "[ERROR] Failed fetching onboarding log channel", exc=e)
+                        channel = None
+
                 if channel:
                     await safe_send(
                         channel,
                         f"✅ **{self.user}** ({self.user.id}) completed onboarding.\n"
                         f"Region: **{self.region}** | Zodiac: **{self.zodiac}** | Daily Reminders: **{self.subscribe_daily}**",
-                        view=None
+                        view=None,
+                        bot=self.bot
                     )
 
         except Exception:
             tb = traceback.format_exc()
             await robust_log(self.bot, f"[ERROR] Completing onboarding failed for {self.user.id}\n{tb}")
-            await safe_send(interaction, "⚠️ Failed to save preferences. Try again later.", ephemeral=True, view=None)
+            await safe_send(
+                interaction,
+                "⚠️ Failed to save preferences. Try again later.",
+                ephemeral=True,
+                view=None,
+                bot=self.bot
+            )
+
 
 # -----------------------
 # Cog
@@ -155,26 +217,27 @@ class OnboardingCog(commands.Cog):
     @commands.command(name="onboard")
     async def onboard_prefix(self, ctx):
         try:
-            await safe_send(ctx, "📬 Check your DMs! Starting onboarding...")
+            await safe_send(ctx, "📬 Check your DMs! Starting onboarding...", bot=self.bot)
             await OnboardingDM(self.bot, ctx.author).start()
         except discord.Forbidden:
-            await safe_send(ctx, "⚠️ I cannot DM you. Enable DMs from server members.")
+            await safe_send(ctx, "⚠️ I cannot DM you. Enable DMs from server members.", bot=self.bot)
         except Exception:
             tb = traceback.format_exc()
             await robust_log(self.bot, f"[ERROR] !onboard failed {ctx.author.id}\n{tb}")
-            await safe_send(ctx, "⚠️ Failed to start onboarding.")
+            await safe_send(ctx, "⚠️ Failed to start onboarding.", bot=self.bot)
 
     @app_commands.command(name="onboard", description="Start onboarding to set your preferences")
     async def onboard(self, interaction: discord.Interaction):
         try:
-            await safe_send(interaction, "📬 Check your DMs! Starting onboarding...", ephemeral=True)
+            await safe_send(interaction, "📬 Check your DMs! Starting onboarding...", ephemeral=True, bot=self.bot)
             await OnboardingDM(self.bot, interaction.user).start()
         except discord.Forbidden:
-            await safe_send(interaction, "⚠️ I cannot DM you. Enable DMs from server members.", ephemeral=True)
+            await safe_send(interaction, "⚠️ I cannot DM you. Enable DMs from server members.", ephemeral=True, bot=self.bot)
         except Exception:
             tb = traceback.format_exc()
             await robust_log(self.bot, f"[ERROR] /onboard failed {interaction.user.id}\n{tb}")
-            await safe_send(interaction, "⚠️ Failed to start onboarding.", ephemeral=True)
+            await safe_send(interaction, "⚠️ Failed to start onboarding.", ephemeral=True, bot=self.bot)
+
 
 # -----------------------
 # Setup

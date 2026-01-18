@@ -1,148 +1,208 @@
-# 🌙 GBPBot – Your Mystical Discord Companion
+# GBPBot — Your Mystical Discord Companion
 
-✨ **Welcome to GBPBot**! ✨  
-GBPBot is a Discord bot designed for community engagement with a mystical, astrology-themed experience. It provides personalized onboarding, daily reminders, interactive region & zodiac features, and journaling prompts.
+Welcome to GBPBot.
+
+GBPBot is a Discord bot designed for community engagement with a mystical,
+astrology-inspired experience. It provides personalized onboarding, daily
+reminders, region-aware features, zodiac profiles, and journaling prompts —
+all delivered safely via direct messages.
 
 ---
-# Version History
 
-- **v1.0** – Initial reminders cog with basic daily loop and Next Sabbat / Next Full Moon buttons.
+## Current Version
 
-- **v1.1** – Added `safe_send` handling for all interaction responses to prevent errors.
+Version: 1.10.1  
+Release: Discloud Migration & Stability Release
 
-- **v1.2** – Introduced Random Quote button for users.
+Highlights:
+- Flat file structure (single directory)
+- Discloud-compatible deployment
+- Robust logging and interaction safety
+- No breaking changes for users
 
-- **v1.3** – Combined Random Quote + Journal Prompt button; fully consistent with bot UX and safe_send handling.
-
-- **v1.4** – Added `daily` column to users table; updated `save_user_preferences` and `get_user_preferences` to handle daily preference.
-
-- **v1.5** – Automatic `ALTER TABLE` to add `daily` if missing; backward-compatible with `set_user_preferences`.
-
-- **v1.6** – Minor fixes for async DB operations and improved exception logging.
-
-- **v1.7** – Updated `daily_loop` to unpack 6 values from `get_all_subscribed_users`; added `prefs["daily"]` check to send reminders only when enabled.
-
-- **v1.8** – Fully robust `safe_send` handling across all buttons and daily loop; fixed `NoneType is_finished` errors.
-
-- **v1.9** – Fixed `ephem.Moon` input type; ensured `view=None` in all `safe_send` calls.
-
-- **v1.10** – Added hemisphere-aware sabbat reminders; daily loop now includes moon phase emoji; updated `constants.py` with `hemisphere` field and `SABBATS_HEMISPHERES` dict; fully integrated with safe_send and robust logging.
+See CHANGE_LOG.md for full history  
+See RELEASE.md for deployment notes
 
 ---
 
 ## Features
 
-- **Interactive Onboarding**
-  - DM-based sequential flow: Region → Zodiac → Subscription
-  - Emoji-enhanced buttons
-  - Color-coded subscription buttons (green for subscribe, red for unsubscribe)
-  - Safe DM delivery with fallback messages in server channels
+### Interactive Onboarding (DM-Based)
+- Step-by-step flow: Region → Zodiac → Daily reminders
+- Emoji-enhanced buttons
+- Cancel support at every stage
+- Safe DM delivery with graceful fallbacks
 
-- **Region-Specific Roles**
-  - Assign users to region roles based on selection
-  - Access region-specific channels
+### Region & Hemisphere Awareness
+- Timezone-aware scheduling
+- Hemisphere-aware Sabbat reminders
+- Shared region data across onboarding, reminders, and profiles
 
-- **Zodiac Integration**
-  - Personalized zodiac selection during onboarding
+### Daily Reminders
+- Optional daily DM reminders
+- Includes inspirational quotes
+- Includes journal prompts
+- Includes moon phase emoji
+- Fully respects user preferences (daily flag, days, hour)
 
-- **Daily Reminders**
-  - Optional daily notifications via DM
-  - Includes inspirational quotes and journal prompts
-  - Region-aware scheduling (time zones)
+### Sabbat & Moon Features
+- Next Sabbat button
+- Next Full Moon button
+- Optional public Sabbat announcements (configurable)
 
-- **Interactive Commands**
-  - `/reminder` – Receive an interactive daily reminder
-  - `/submit_quote` – Add a custom inspirational quote
-  - `/submit_journal` – Add a custom journal prompt
-  - `/status` – Check bot status and upcoming events
-  - `/unsubscribe` – Stop receiving daily DMs
-  - `/onboard` – Manually start the onboarding process
-  - `/help` – Get a DM with all available commands
+### User Profile
+- /profile (DM-only)
+- Displays:
+  - Region and timezone
+  - Hemisphere
+  - Zodiac
+  - Subscription status
+  - Daily reminder status
 
-- **Safe & Robust**
-  - Handles missing roles, DMs, and database errors gracefully
-  - Error logging to a dedicated channel
+### Admin & Utility Commands
+- /onboarding_status (admin only)
+- /test (admin only)
+- /version
 
 ---
 
-## Installation
+## Commands Overview
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/gbpbot.git
-   cd gbpbot```
+| Command | Description |
+|--------|-------------|
+| /onboard | Start onboarding (DM-based) |
+| /profile | View your settings (DM-only) |
+| /reminder | Get an interactive reminder |
+| /submit_quote | Submit an inspirational quote |
+| /submit_journal | Submit a journal prompt |
+| /unsubscribe | Stop daily reminders |
+| /help | Receive command help via DM |
+| /onboarding_status | Admin: onboarding overview |
+| /test | Admin: test bot responsiveness |
+| /version | Show current bot version |
 
-2. **Clone the repository**
-	```bash 
-	python -m venv .venv
-	source .venv/bin/activate  # Linux/macOS
-	.venv\Scripts\activate     # Windows```
-	
-3. **Install dependencies**
-	```pip install -r requirements.txt```
-	
-4. **Environment Variables**
-	
-	Create a .env file with/Use railway
-	
-	```DISCORD_BOT_TOKEN=your_bot_token```
-				and
-	```GUILD_ID=your_server_id```
+---
 
-	**Initialize the Database**
-	``` python -c "from db import init_db; init_db()" ```
-	
-	**Run**
-	``` python bot.py ```
+## Project Structure (Required)
 
-## Usage
+GBPBot uses a flat file structure.  
+This is required for Discloud deployments.
 
-### Onboarding
+All files must exist at the root level:
 
-- New members will receive a DM upon joining.
+    bot.py
+    logger.py
+    version_tracker.py
+    db.py
+    safe_send.py
+    constants.py
+    onboarding.py
+    reminders.py
+    commands.py
 
-- Use /onboard if the DM onboarding needs to be triggered manually.
+Do not use subfolders such as utils/ or cogs/.
 
-### Daily Reminders
+---
 
-- Users can subscribe during onboarding.
+## Configuration (.env)
 
-- Reminders include quotes and journal prompts.
+Create a file named .env in the project root.
 
-### Commands
+Required variable:
 
-- Interact with the bot using slash commands in Discord.
+    DISCORD_TOKEN=your_bot_token
 
-		Example: `/reminder`, `/submit_quote`, `/status`.
+Optional variables:
 
-# Configuration
+    GUILD_ID=your_server_id
+    LOG_CHANNEL_ID=your_log_channel_id
+    DB_FILE=bot_data.db
+    SABBAT_CHANNEL_ID=optional_public_channel_id
 
-## Region Roles
-```
-python
-REGIONS = {
-    "North America": {"role_id": 1416438886397251768, "emoji": "🇺🇸"},
-    "South America": {"role_id": 1416438925140164809, "emoji": "🌴"},
-    "Europe": {"role_id": 1416439011517534288, "emoji": "🍀"},
-    "Africa": {"role_id": 1416439116043649224, "emoji": "🌍"},
-    "Oceania & Asia": {"role_id": 1416439141339758773, "emoji": "🌺"},
-}
-```
+Notes:
+- Missing optional variables never crash the bot
+- .env is loaded early at startup (Discloud-safe)
 
-## Logging
+---
 
-- All errors and warnings are logged to the channel ID specified by ```LOG_CHANNEL_ID.```
+## Installation (Local Development)
+
+Clone the repository:
+
+    git clone https://github.com/yourusername/gbpbot.git
+    cd gbpbot
+
+Create and activate a virtual environment:
+
+    python -m venv .venv
+    source .venv/bin/activate   (Linux / macOS)
+    .venv\Scripts\activate      (Windows)
+
+Install dependencies:
+
+    pip install -r requirements.txt
+
+Run the bot:
+
+    python bot.py
+
+---
+
+## Deployment (Discloud)
+
+Important notes:
+- Upload files one at a time
+- Restart the bot after each update
+- Ensure .env exists before starting
+- Watch logs immediately after boot
+- Test /version and /test after deployment
+
+---
+
+## Logging & Stability
+
+- Centralized logging via logger.py
+- Console logging always enabled
+- Optional Discord logging channel
+- All interaction errors handled safely
+- No “This interaction failed” errors
+
+---
+
+## Versioning
+
+GBPBot follows Semantic Versioning:
+
+- MAJOR — Breaking changes
+- MINOR — New features (backwards compatible)
+- PATCH — Fixes and refactors
+
+Version hygiene is tracked and enforced per release.
+
+---
 
 ## Contributing
 
-- Fork the repository
-- Create a feature branch:
-  ```bash git checkout -b feature-name```
-  
-- Commit your changes:
-  ```bash git commit -am 'Add new feature'```
+1. Fork the repository
+2. Create a feature branch:
 
-- Push to the branch:
- ```bashgit push origin feature-name```
+       git checkout -b feature-name
 
-- Open a Pull Request
+3. Commit your changes:
+
+       git commit -am "Add feature"
+
+4. Push and open a Pull Request
+
+---
+
+## Final Notes
+
+GBPBot is designed to be:
+
+- Mystical but reliable
+- Thoughtfully engineered
+- Safe under real-world Discord conditions
+- Hosting-friendly (Discloud)
+
+This README reflects the current, production-ready baseline.

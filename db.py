@@ -1,29 +1,29 @@
 # GBPBot - db.py
-# Version: 1.0.3b4
-# Last Updated: 2025-09-21
+# Version: 1.0.4.1
+# Last Updated: 2026-01-18
 # Notes:
-# - Added 'daily' column support with auto-ALTER TABLE if missing.
-# - save_user_preferences/get_user_preferences updated to handle 'daily'.
-# - Fully compatible with reminders.py daily_loop and subscription handling.
-# - Minor fixes for async DB operations and robust exception logging.
+# - Flat-structure refactor: imports use logger.py directly (no utils/).
+# - DB_FILE is env-driven (DB_FILE) with safe default, and auto-creates directories.
+# - Fix robust_log usage: pass exc=<Exception> (not traceback string).
+# - Keeps 'daily' column support with auto-ALTER TABLE if missing.
 # -----------------------
 # CHANGE LOG
 # -----------------------
+# [2026-01-18] v1.0.4.1 - Flat-structure imports + env-driven DB_FILE + safe conn handling + robust_log fixes.
+# [2025-09-21] v1.0.3b4 - Corrected get_all_subscribed_users and daily unpacking; synced with reminders.py daily loop.
 # [2025-09-20] v1.0.3b1 - Added 'daily' column support for users table; updated save_user_preferences and get_user_preferences.
 # [2025-09-20] v1.0.3b2 - Automatic ALTER TABLE to add 'daily' if missing; backward-compatible with set_user_preferences.
 # [2025-09-20] v1.0.3b3 - Minor fixes for async DB operations and exception logging.
-# [2025-09-21] v1.0.3b4 - Corrected get_all_subscribed_users and daily unpacking; synced with reminders.py daily loop.
 
-
+import os
 import sqlite3
 from typing import List, Optional, Tuple
 import traceback
-import asyncio
 
-from utils.logger import robust_log
+from logger import robust_log
 from version_tracker import GBPBot_version, FILE_VERSIONS, get_file_version
 
-DB_FILE = "bot_data.db"
+
 DEFAULT_DAYS = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
 
 DEFAULT_QUOTES = [
@@ -40,6 +40,32 @@ DEFAULT_PROMPTS = [
     "What intention do you want to set for today?"
 ]
 
+
+def _get_env(name: str):
+    v = os.getenv(name)
+    if v is None:
+        return None
+    v = v.strip()
+    return v if v else None
+
+
+def _get_db_file() -> str:
+    """
+    DB file path:
+    - If DB_FILE env var exists, use it (can include directories)
+    - Otherwise use a safe default in current working directory
+    """
+    return _get_env("DB_FILE") or "bot_data.db"
+
+
+DB_FILE = _get_db_file()
+
+# If DB_FILE includes directories, ensure they exist (Discloud-safe)
+_db_dir = os.path.dirname(DB_FILE)
+if _db_dir:
+    os.makedirs(_db_dir, exist_ok=True)
+
+
 # -----------------------
 # Initialization
 # -----------------------
@@ -49,6 +75,7 @@ async def init_db(bot=None) -> None:
     Creates tables and pre-populates quotes and prompts.
     Automatically adds 'daily' column if missing.
     """
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -113,12 +140,14 @@ async def init_db(bot=None) -> None:
 
     except Exception as e:
         if bot:
-            await robust_log(bot, f"❌ Failed to initialize DB: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to initialize DB: {e}", exc=e)
         else:
             print(f"DB init error: {e}\n{traceback.format_exc()}")
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
+
 
 # -----------------------
 # User Preferences
@@ -130,12 +159,13 @@ async def save_user_preferences(
     hour: Optional[int] = None,
     days: Optional[List[str]] = None,
     subscribed: Optional[bool] = None,
-    daily: Optional[bool] = None,  # new parameter
+    daily: Optional[bool] = None,
     bot=None
 ) -> None:
     """
     Upsert preserving existing values when parameters are None.
     """
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -167,15 +197,17 @@ async def save_user_preferences(
 
     except Exception as e:
         if bot:
-            await robust_log(bot, f"❌ Failed to save user preferences for {user_id}: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to save user preferences for {user_id}: {e}", exc=e)
         else:
             print(f"Save user prefs error: {e}\n{traceback.format_exc()}")
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 async def get_user_preferences(user_id: int) -> Optional[dict]:
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -200,7 +232,8 @@ async def get_user_preferences(user_id: int) -> Optional[dict]:
         print(f"Get user prefs error: {e}\n{traceback.format_exc()}")
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
     return None
 
 
@@ -212,7 +245,8 @@ async def set_subscription(user_id: int, status: bool, bot=None) -> None:
 # Clear User Preferences
 # -----------------------
 async def clear_user_preferences(user_id: int, bot=None) -> None:
-    """ Deletes a user's preferences from the DB. """
+    """Deletes a user's preferences from the DB."""
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -224,18 +258,20 @@ async def clear_user_preferences(user_id: int, bot=None) -> None:
 
     except Exception as e:
         if bot:
-            await robust_log(bot, f"❌ Failed to clear preferences for {user_id}: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to clear preferences for {user_id}: {e}", exc=e)
         else:
             print(f"Clear user prefs error: {e}\n{traceback.format_exc()}")
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 # -----------------------
 # Quotes
 # -----------------------
 async def add_quote(quote: str, bot=None) -> None:
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -244,12 +280,13 @@ async def add_quote(quote: str, bot=None) -> None:
 
     except Exception as e:
         if bot:
-            await robust_log(bot, f"❌ Failed to add quote: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to add quote: {e}", exc=e)
         else:
             print(f"Add quote error: {e}\n{traceback.format_exc()}")
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 async def get_all_quotes() -> List[str]:
@@ -265,6 +302,7 @@ async def get_all_quotes() -> List[str]:
 # Journal Prompts
 # -----------------------
 async def add_journal_prompt(prompt: str, bot=None) -> None:
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -273,12 +311,13 @@ async def add_journal_prompt(prompt: str, bot=None) -> None:
 
     except Exception as e:
         if bot:
-            await robust_log(bot, f"❌ Failed to add journal prompt: {e}", exc=traceback.format_exc())
+            await robust_log(bot, f"❌ Failed to add journal prompt: {e}", exc=e)
         else:
             print(f"Add journal prompt error: {e}\n{traceback.format_exc()}")
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 async def get_all_journal_prompts() -> List[str]:
@@ -298,6 +337,7 @@ async def get_all_subscribed_users() -> List[Tuple]:
     Return list of rows for subscribed users:
     (user_id, region, zodiac, reminder_hour, reminder_days, daily)
     """
+    conn = None
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
@@ -312,7 +352,8 @@ async def get_all_subscribed_users() -> List[Tuple]:
         return []
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 # -----------------------
